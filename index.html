@@ -17,8 +17,9 @@
   .panel{background:var(--card); border:1px solid var(--border); border-radius:14px; padding:16px; margin-bottom:16px}
   .row{display:flex; gap:12px; flex-wrap:wrap; align-items:center}
   .field{display:flex; gap:8px; align-items:center; flex-wrap:wrap}
-  .chip{border:1px solid var(--border); background:var(--chip); color:var(--ink); padding:8px 10px; border-radius:999px; cursor:pointer; user-select:none; font-size:13px}
-  .chip input{display:none}
+  .chip{position:relative; border:1px solid var(--border); background:var(--chip); color:var(--ink); padding:8px 10px; border-radius:999px; cursor:pointer; user-select:none; font-size:13px}
+  /* keep inputs present for accessibility but visually hidden */
+  .chip input{position:absolute; opacity:0; inset:0; width:100%; height:100%; cursor:pointer}
   .chip.active{background:var(--chipOn); border-color:#1e7c61}
   .search{flex:1; min-width:220px}
   .search input{width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--border); background:#0e1016; color:var(--ink)}
@@ -40,18 +41,18 @@
 <body>
   <div class="wrap">
     <h1>Sydney Activity Picker</h1>
-    <div class="sub">Tick tags, choose category/indoor-outdoor, search… then click <b>Surprise me</b> or pick from the list.</div>
+    <div class="sub">Tick tags, choose category/indoor–outdoor, search… then click <b>Surprise me</b> or pick from the list.</div>
 
     <!-- Controls -->
     <div class="panel">
       <div class="row toolbar">
-        <div class="pill">
+        <div class="pill" role="radiogroup" aria-label="Category">
           <label><input type="radio" name="cat" value="All" checked> All</label>
           <label><input type="radio" name="cat" value="Seasonal"> Seasonal</label>
           <label><input type="radio" name="cat" value="Permanent"> Permanent</label>
         </div>
 
-        <div class="pill">
+        <div class="pill" aria-label="Indoor/Outdoor">
           <label><input type="checkbox" id="indoors"> Indoors</label>
           <label><input type="checkbox" id="outdoors"> Outdoors</label>
         </div>
@@ -73,12 +74,13 @@
     <div class="results" id="results"></div>
 
     <div class="muted" style="margin-top:14px">
-      Keep this page in a private GitHub repo and enable Pages. State is encoded in the URL, so you can bookmark specific filter combos. (<a href="#" class="link" id="shareLink">copy current link</a>)
+      Keep this page in a private GitHub repo and enable Pages. State is in the URL, so you can bookmark combos. (<a href="#" class="link" id="shareLink">copy current link</a>)
     </div>
   </div>
 
 <script>
-// ---- Data ---------------------------------------------------------
+// ---------- Data ---------------------------------------------------
+function row(name, category, tags){return {name, category, tags}}
 const activities = [
   // Seasonal
   row("Bushwalking and picnic","Seasonal",["Outdoors","Active","Scenic"]),
@@ -127,30 +129,27 @@ const activities = [
   row("Life drawing","Permanent",["Creative","Cultural","Indoors"]),
 ];
 
-function row(name, category, tags){return {name, category, tags}}
-
-// ---- Tag set ------------------------------------------------------
+// ---------- Tags ---------------------------------------------------
 const ALL_TAGS = Array.from(new Set(activities.flatMap(a=>a.tags))).sort();
 
-// ---- DOM helpers --------------------------------------------------
+// ---------- DOM helpers -------------------------------------------
 const $ = sel => document.querySelector(sel);
 const el = (tag, cls, txt) => Object.assign(document.createElement(tag), {className:cls||"", textContent:txt||""});
 
-// ---- Build tag chips ----------------------------------------------
+// ---------- Build tag chips (FIXED: listen to input change) -------
 const tagWrap = $("#tagChips");
 ALL_TAGS.forEach(t=>{
   const lab = el("label","chip");
-  const inp = Object.assign(document.createElement("input"),{type:"checkbox","data-tag":t});
-  lab.append(inp, document.createTextNode(" "+t));
-  lab.addEventListener("click", e=>{
-    // toggle visual active after click resolves
-    setTimeout(()=>lab.classList.toggle("active", inp.checked));
+  const inp = Object.assign(document.createElement("input"),{type:"checkbox","data-tag":t, "aria-label":t});
+  inp.addEventListener("change", ()=>{
+    lab.classList.toggle("active", inp.checked);
     update();
   });
+  lab.append(inp, document.createTextNode(" "+t));
   tagWrap.append(lab);
 });
 
-// ---- State from controls ------------------------------------------
+// ---------- State helpers ------------------------------------------
 function getState(){
   const cat = [...document.querySelectorAll('input[name="cat"]')].find(i=>i.checked).value;
   const indoors = $("#indoors").checked;
@@ -161,12 +160,12 @@ function getState(){
   return {cat, indoors, outdoors, q, tags};
 }
 
-// ---- Filtering -----------------------------------------------------
+// ---------- Matching logic -----------------------------------------
 function matches(a, st){
   if (st.cat!=="All" && a.category!==st.cat) return false;
   if (st.indoors && !a.tags.includes("Indoors")) return false;
   if (st.outdoors && !a.tags.includes("Outdoors")) return false;
-  for (const t of st.tags) if (!a.tags.includes(t)) return false; // AND logic for chosen tags
+  for (const t of st.tags) if (!a.tags.includes(t)) return false; // AND logic
   if (st.q){
     const hay = (a.name+" "+a.category+" "+a.tags.join(" ")).toLowerCase();
     if (!hay.includes(st.q)) return false;
@@ -174,11 +173,11 @@ function matches(a, st){
   return true;
 }
 
-// ---- Render results -----------------------------------------------
+// ---------- Render --------------------------------------------------
 function render(list){
   const box = $("#results");
   box.innerHTML = "";
-  if (!list.length){ box.append(el("div","muted","No matches. Try fewer filters.")); return; }
+  if (!list.length){ box.append(el("div","muted","No matches. Try fewer filters.")); $("#count").textContent="0 matches"; return; }
   for (const a of list){
     const card = el("div","card");
     card.append(el("div","title",a.name));
@@ -191,7 +190,7 @@ function render(list){
   $("#count").textContent = `${list.length} match${list.length===1?"":"es"}`;
 }
 
-// ---- URL state (shareable) ----------------------------------------
+// ---------- URL state ----------------------------------------------
 function writeHash(st){
   const o = {c:st.cat,i:st.indoors?1:0,o:st.outdoors?1:0,q:st.q,t:st.tags};
   location.hash = encodeURIComponent(JSON.stringify(o));
@@ -213,7 +212,7 @@ function applyHash(o){
   });
 }
 
-// ---- Update pipeline ----------------------------------------------
+// ---------- Update pipeline ----------------------------------------
 function update(){
   const st = getState();
   const list = activities.filter(a=>matches(a,st));
@@ -221,7 +220,7 @@ function update(){
   writeHash(st);
 }
 
-// ---- Buttons -------------------------------------------------------
+// ---------- Buttons/inputs -----------------------------------------
 $("#randomBtn").addEventListener("click", ()=>{
   const st = getState();
   const list = activities.filter(a=>matches(a,st));
@@ -244,8 +243,11 @@ $("#shareLink").addEventListener("click", e=>{
   e.preventDefault();
   navigator.clipboard.writeText(location.href).then(()=> alert("Link copied!"));
 });
+document.querySelectorAll('input[name="cat"]').forEach(r=> r.addEventListener("change", update));
+$("#indoors").addEventListener("change", update);
+$("#outdoors").addEventListener("change", update);
 
-// Init
+// ---------- Init ----------------------------------------------------
 applyHash(readHash());
 update();
 </script>
