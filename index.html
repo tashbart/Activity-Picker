@@ -122,14 +122,23 @@ const activities=[
 activities.forEach(a=>{ a._tagStr = ";" + a.tags.map(norm).join(";") + ";"; });
 
 /* Build chips from normalized unique keys */
-const ALL_TAGS = Array.from(new Set(activities.flatMap(a=>a.tags.map(norm)))).sort()
-  .map(t=>({key:t,label:t.replace(/\b\w/g,c=>c.toUpperCase())}));
-const tagWrap=$("#tagChips");
+const ALL_TAGS = Array.from(new Set(activities.flatMap(a=>a.tags.map(norm))))
+  .sort()
+  .map(t => ({key:t, label: t.replace(/\b\w/g,c=>c.toUpperCase())}));
+
+const tagWrap = $("#tagChips");
 ALL_TAGS.forEach(({key,label})=>{
-  const lab=el("label","chip");
-  const inp=Object.assign(document.createElement("input"),{type:"checkbox","data-tag":key,"aria-label":label});
-  inp.addEventListener("change",()=>{ lab.classList.toggle("active",inp.checked); update(); });
-  lab.append(inp, document.createTextNode(" "+label));
+  const lab = el("label","chip");
+  const inp = document.createElement("input");
+  inp.type = "checkbox";
+  inp.dataset.tag = key;   // ✅ ensure key is stored
+  inp.value = key;         // ✅ ensure value is also stored
+  inp.setAttribute("aria-label", label);
+  inp.addEventListener("change", ()=>{
+    lab.classList.toggle("active", inp.checked);
+    update();
+  });
+  lab.append(inp, document.createTextNode(" " + label));
   tagWrap.append(lab);
 });
 
