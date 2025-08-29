@@ -4,6 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Sydney Activity Picker</title>
+<meta name="description" content="Pick activities by tags like Indoors, Cultural, Nighttime.">
 <style>
   :root{
     --bg:#0b0c10; --card:#111218; --ink:#e6e7ee; --dim:#aeb1c6; --accent:#7bdcbe; --chip:#1b1e29; --chipOn:#133229;
@@ -20,9 +21,9 @@
   .chip input{position:absolute; opacity:0; inset:0; width:100%; height:100%; cursor:pointer}
   .chip.active{background:var(--chipOn); border-color:#1e7c61}
   .search{flex:1; min-width:220px}
-  .search input{width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--border); background:#0e1016; color:var(--ink)}
+  .search input{width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--border); background:#0e1016; color:#e6e7ee}
   .btn{background:var(--accent); color:#0a0f10; border:none; padding:10px 14px; border-radius:10px; cursor:pointer; font-weight:600}
-  .btn.secondary{background:#1b2130; color:var(--ink); border:1px solid var(--border)}
+  .btn.secondary{background:#1b2130; color:#e6e7ee; border:1px solid var(--border)}
   .results{display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:12px; margin-top:12px}
   .card{background:var(--card); border:1px solid var(--border); border-radius:14px; padding:14px}
   .title{font-weight:700; margin:0 0 2px; font-size:15px}
@@ -34,8 +35,6 @@
   .muted{color:var(--muted)}
   .counts{margin-left:auto; color:var(--dim); font-size:13px}
   a.link{color:var(--accent); text-decoration:none}
-
-  /* Mobile tweaks */
   * { -webkit-tap-highlight-color: transparent; }
   input, button { font-size: 16px; }
   @media (max-width: 640px) {
@@ -50,10 +49,9 @@
 </head>
 <body>
   <div class="wrap">
-    <h1>Sydney Activity Picker</h1>
+    <h1>Sydney Activity Picker <span class="muted" style="font-size:12px">v1.2</span></h1>
     <div class="sub">Tick tags, choose category/indoor–outdoor, search… then click <b>Surprise me</b> or pick from the list.</div>
 
-    <!-- Controls -->
     <div class="panel">
       <div class="row toolbar">
         <div class="pill" role="radiogroup" aria-label="Category">
@@ -80,7 +78,6 @@
       <div class="muted" style="margin-top:6px">Tip: filters use <b>AND</b> logic. (e.g., Indoors + Cultural + Nighttime)</div>
     </div>
 
-    <!-- Results -->
     <div class="results" id="results"></div>
 
     <div class="muted" style="margin-top:14px">
@@ -89,7 +86,11 @@
   </div>
 
 <script>
-// ---------- Data ---------------------------------------------------
+/* ---------- Helpers ---------- */
+const row = (name, category, tags) => ({name, category, tags});
+const norm = s => (s||"").toString().trim().toLowerCase();
+
+/* ---------- Data ---------- */
 const activities = [
   // Seasonal
   row("Bushwalking and picnic","Seasonal",["Outdoors","Active","Scenic"]),
@@ -101,6 +102,7 @@ const activities = [
   row("Blue Mountains overnight","Seasonal",["Day trip","Outdoors","Active","Scenic"]),
   row("Kayaking","Seasonal",["Water activity","Outdoors","Active"]),
   row("Stargazing at Sydney Observatory","Seasonal",["Outdoors","Nighttime","Scenic"]),
+
   // Permanent
   row("Art gallery + Botanic gardens picnic","Permanent",["Cultural","Outdoors","Scenic"]),
   row("Biennale","Permanent",["Cultural","Event","Outdoors"]),
@@ -137,20 +139,21 @@ const activities = [
   row("Life drawing","Permanent",["Creative","Cultural","Indoors"]),
 ];
 
-function row(name, category, tags){ return {name, category, tags}; }
+/* Precompute normalized tag string for each activity: ;tag1;tag2; */
+activities.forEach(a=>{
+  a._tagStr = ";" + a.tags.map(norm).join(";") + ";";
+});
 
-// ---------- Normalization helpers ---------------------------------
-const norm = s => (s||"").toString().trim().toLowerCase();
-const tagsOf = a => new Set(a.tags.map(norm));
-
-// ---------- Build tag chips from normalized set -------------------
+/* Build unique normalized tag list for chips */
 const ALL_TAGS = Array.from(
   new Set(activities.flatMap(a=>a.tags.map(norm)))
 ).sort().map(t => ({ key:t, label: t.replace(/\b\w/g, c=>c.toUpperCase()) }));
 
+/* DOM helpers */
 const $ = sel => document.querySelector(sel);
 const el = (tag, cls, txt) => Object.assign(document.createElement(tag), {className:cls||"", textContent:txt||""});
 
+/* Build tag chips (data-tag holds normalized key) */
 const tagWrap = $("#tagChips");
 ALL_TAGS.forEach(({key,label})=>{
   const lab = el("label","chip");
@@ -163,7 +166,7 @@ ALL_TAGS.forEach(({key,label})=>{
   tagWrap.append(lab);
 });
 
-// ---------- Read controls -----------------------------------------
+/* Read controls */
 function getState(){
   const cat = [...document.querySelectorAll('input[name="cat"]')].find(i=>i.checked).value;
   const indoors = $("#indoors").checked;
@@ -174,15 +177,18 @@ function getState(){
   return {cat, indoors, outdoors, q, tags};
 }
 
-// ---------- Match logic (normalized) -------------------------------
+/* Match logic using normalized ;tag; string */
 function matches(a, st){
   if (st.cat!=="All" && a.category!==st.cat) return false;
 
-  const tset = tagsOf(a); // normalized set
-  if (st.indoors && !tset.has("indoors")) return false;
-  if (st.outdoors && !tset.has("outdoors")) return false;
+  // indoor/outdoor flags: require presence only if checked
+  if (st.indoors && !a._tagStr.includes(";indoors;")) return false;
+  if (st.outdoors && !a._tagStr.includes(";outdoors;")) return false;
 
-  for (const t of st.tags) { if (!tset.has(t)) return false; } // AND of selected chips
+  // require all selected chips
+  for (const t of st.tags) {
+    if (!a._tagStr.includes(";"+t+";")) return false;
+  }
 
   if (st.q){
     const hay = (a.name+" "+a.category+" "+a.tags.join(" ")).toLowerCase();
@@ -191,7 +197,7 @@ function matches(a, st){
   return true;
 }
 
-// ---------- Render -------------------------------------------------
+/* Render */
 function render(list){
   const box = $("#results");
   box.innerHTML = "";
@@ -208,7 +214,7 @@ function render(list){
   $("#count").textContent = `${list.length} match${list.length===1?"":"es"}`;
 }
 
-// ---------- URL state (uses normalized keys) ----------------------
+/* URL state (normalized keys) */
 function writeHash(st){
   const o = {c:st.cat,i:st.indoors?1:0,o:st.outdoors?1:0,q:st.q,t:st.tags};
   location.hash = encodeURIComponent(JSON.stringify(o));
@@ -230,7 +236,7 @@ function applyHash(o){
   });
 }
 
-// ---------- Update pipeline & controls ----------------------------
+/* Update + controls */
 function update(){
   const st = getState();
   const list = activities.filter(a=>matches(a,st));
@@ -263,7 +269,7 @@ document.querySelectorAll('input[name="cat"]').forEach(r=> r.addEventListener("c
 $("#indoors").addEventListener("change", update);
 $("#outdoors").addEventListener("change", update);
 
-// ---------- Init ---------------------------------------------------
+/* Init */
 applyHash(readHash());
 update();
 </script>
