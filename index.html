@@ -62,13 +62,23 @@
   .err{color:var(--danger); font-size:12px; display:none}
   .toast{position:fixed; bottom:16px; left:50%; transform:translateX(-50%); background:#14241c; border:1px solid #194d3d;
          color:#b6f0d8; padding:10px 14px; border-radius:10px; display:none; z-index:60}
+
+  /* NEW: full-width CTA button (only color/placement change) */
+  .cta-row{margin-top:12px}
+  .btn.cta{
+    display:block; width:100%;
+    background: linear-gradient(180deg, #ffd166, #fca311);
+    color:#1a1200; border:none; font-weight:800; letter-spacing:.2px;
+    padding:14px 16px; border-radius:12px;
+    box-shadow: 0 6px 16px rgba(252,163,17,.35);
+  }
+  .btn.cta:hover{ filter: brightness(1.05) }
 </style>
 </head>
 <body>
   <div class="wrap">
-    <h1>Sydney Activity Picker <span class="muted" style="font-size:12px">v3.1 (Google Sheet + tag checklist)</span></h1>
-    <div class="sub">Tick tags, choose category/indoor–outdoor, search… then click <b>Surprise me</b> or pick from the list.</div>
-
+    <h1>Sydney Activity Picker
+      
     <!-- Controls -->
     <div class="panel">
       <div class="row toolbar">
@@ -87,12 +97,16 @@
 
         <button class="btn" id="randomBtn">🎲 Surprise me</button>
         <button class="btn secondary" id="clearBtn">Clear</button>
-        <button class="btn ghost" id="openSuggest">Suggest an activity</button>
+        <!-- MOVED: removed the ghost button from here -->
         <div class="counts" id="count"></div>
       </div>
 
       <div class="row" id="tagChips" style="margin-top:10px"></div>
-      <div class="muted" style="margin-top:6px">Filters use <b>AND</b> logic. (e.g., Indoors + Cultural + Nighttime)</div>
+
+      <!-- NEW LOCATION: full-width CTA below filters -->
+      <div class="cta-row">
+        <button class="btn cta" id="openSuggest">＋ Suggest an activity</button>
+      </div>
     </div>
 
     <!-- Results -->
@@ -157,8 +171,7 @@ const SHEET_CSV_URL  = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQglaw4_
 
 /* Allowed tags for submissions (shown as checkboxes) */
 const TAG_OPTIONS = [
-  "Outdoors","Indoors","Active","Relaxing","Scenic","Cultural",
-  "Creative","Food & Drink","Nightlife","Animals","Day trip","Water activity"
+ "Active","Animals","Creative","Cultural","Day trip","Entertainment","Food & Drink","Indoors","Nightlife","Outdoors","Relaxing","Scenic","Water activity"
 ];
 
 /* ---------- Helpers ---------- */
