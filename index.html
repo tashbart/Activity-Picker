@@ -7,126 +7,47 @@
 <meta name="description" content="Pick activities by tags like Indoors, Cultural, Nighttime, Scenic, etc.">
 <style>
   :root{
-    --bg:#0b0e14; --bgSoft:#0f1320; --card:rgba(18,20,31,.72);
-    --ink:#e9ecf1; --inkSoft:#b9c0d0;
-    --accent:#7bdcbe; --accent2:#9dd4ff;
-    --chip:#151a29; --chipOn:#113426;
-    --muted:#8f96ad; --border:rgba(120,136,160,.15);
-    --shadow: 0 10px 30px rgba(0,0,0,.35);
-    --ring: 0 0 0 3px rgba(123,220,190,.25);
+    --bg:#0b0c10; --card:#111218; --ink:#e6e7ee; --dim:#aeb1c6; --accent:#7bdcbe;
+    --chip:#1b1e29; --chipOn:#133229; --muted:#7f86a1; --border:#242636; --danger:#e06b6b;
   }
-  /* Light mode palette */
-  :root.light{
-    --bg:#f6f8fb; --bgSoft:#eef2f8; --card:#ffffffcc;
-    --ink:#0f1726; --inkSoft:#47506a;
-    --accent:#0fbf9f; --accent2:#3a82ff;
-    --chip:#eef2f8; --chipOn:#dff6ef;
-    --muted:#5f6b85; --border:rgba(20,30,50,.13);
-    --shadow: 0 10px 30px rgba(14,23,38,.12);
-    --ring: 0 0 0 3px rgba(15,191,159,.25);
-  }
-
   html,body{height:100%;}
-  body{
-    margin:0; font-family:Inter,system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
-    background:
-      radial-gradient(1200px 600px at 10% -10%, rgba(123,220,190,.12), transparent 40%),
-      radial-gradient(1000px 800px at 110% 10%, rgba(157,212,255,.10), transparent 40%),
-      var(--bg);
-    color:var(--ink);
-  }
+  body{margin:0; font-family:Inter,system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif; background:var(--bg); color:var(--ink);}
   .wrap{max-width:1100px; margin:auto; padding:24px;}
-  h1{font-size:clamp(22px,3vw,32px); margin:0 0 6px; letter-spacing:.2px}
-  .sub{color:var(--inkSoft); margin:0 0 18px}
-
-  /* Header bar */
-  .topbar{display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px}
-  .brand{display:flex; align-items:center; gap:10px}
-  .logo{width:34px; height:34px; border-radius:10px; background:linear-gradient(135deg,var(--accent),var(--accent2));
-        box-shadow: var(--shadow); display:grid; place-items:center; font-weight:800; color:#0a0f10}
-  .muted{color:var(--muted)}
-
-  /* Panels + sticky controls */
-  .panel{
-    background:var(--card); backdrop-filter: blur(10px);
-    border:1px solid var(--border); border-radius:16px; padding:14px; margin-bottom:16px;
-    box-shadow: var(--shadow);
-  }
-  .panel.sticky{
-    position:sticky; top:10px; z-index:5;
-  }
-
+  h1{font-size:clamp(22px,3vw,32px); margin:0 0 12px;}
+  .sub{color:var(--dim); margin-bottom:20px}
+  .panel{background:var(--card); border:1px solid var(--border); border-radius:14px; padding:16px; margin-bottom:16px}
   .row{display:flex; gap:12px; flex-wrap:wrap; align-items:center}
-  .toolbar{display:flex; gap:10px; flex-wrap:wrap; align-items:center}
-
-  .pill{
-    display:flex; gap:10px; align-items:center; background:var(--bgSoft);
-    border:1px solid var(--border); padding:8px 10px; border-radius:999px; color:var(--inkSoft)
-  }
-  .pill input{accent-color:var(--accent)}
-
-  .search{flex:1; min-width:220px}
-  .search input{
-    width:100%; padding:11px 14px; border-radius:12px;
-    border:1px solid var(--border); background:color-mix(in oklab, var(--bg) 88%, black 0%);
-    color:var(--ink); outline:none; transition:border .15s, box-shadow .15s
-  }
-  .search input:focus{ box-shadow: var(--ring); border-color: color-mix(in oklab, var(--accent) 60%, black 0%) }
-
-  .btn{
-    background:linear-gradient(180deg, var(--accent), color-mix(in oklab, var(--accent) 80%, black 12%));
-    color:#0a0f10; border:none; padding:10px 14px; border-radius:12px; cursor:pointer; font-weight:700;
-    box-shadow: 0 6px 16px rgba(123,220,190,.3); transition: transform .08s ease, box-shadow .15s ease;
-  }
-  .btn:hover{ transform: translateY(-1px); box-shadow: 0 10px 22px rgba(123,220,190,.38) }
-  .btn:active{ transform: translateY(0) }
-  .btn.secondary{
-    background:transparent; color:var(--ink);
-    border:1px solid var(--border); box-shadow:none; font-weight:600
-  }
-  .btn.ghost{
-    background:transparent; border:1px dashed var(--border); color:var(--ink);
-  }
-  .btn.toggle{padding:8px 10px}
-
-  /* Tag chips */
-  .chip{
-    position:relative; border:1px solid var(--border); background:var(--chip); color:var(--ink);
-    padding:8px 12px; border-radius:999px; cursor:pointer; user-select:none; font-size:13px;
-    transition: background .12s, border-color .12s, transform .06s
-  }
-  .chip:hover{ transform: translateY(-1px) }
+  .chip{position:relative; border:1px solid var(--border); background:var(--chip); color:var(--ink);
+        padding:8px 10px; border-radius:999px; cursor:pointer; user-select:none; font-size:13px}
   .chip input{position:absolute; opacity:0; inset:0; width:100%; height:100%; cursor:pointer}
-  .chip.active{background:var(--chipOn); border-color: color-mix(in oklab, var(--accent) 60%, black 0%)}
-
-  /* Cards / results */
-  .results{display:grid; grid-template-columns:repeat(auto-fill,minmax(270px,1fr)); gap:14px; margin-top:12px}
-  .card{
-    background:var(--card); backdrop-filter: blur(8px);
-    border:1px solid var(--border); border-radius:16px; padding:16px;
-    box-shadow: var(--shadow); transition: transform .12s ease, border-color .12s ease;
-  }
-  .card:hover{ transform: translateY(-2px); border-color: color-mix(in oklab, var(--accent2) 55%, black 0%) }
-  .title{font-weight:800; margin:0 0 6px; font-size:16px; letter-spacing:.2px}
-  .meta{color:var(--inkSoft); font-size:12px; margin-bottom:10px}
+  .chip.active{background:var(--chipOn); border-color:#1e7c61}
+  .search{flex:1; min-width:220px}
+  .search input{width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--border); background:#0e1016; color:#e6e7ee}
+  .btn{background:var(--accent); color:#0a0f10; border:none; padding:10px 14px; border-radius:10px; cursor:pointer; font-weight:600}
+  .btn.secondary{background:#1b2130; color:#e6e7ee; border:1px solid var(--border)}
+  .btn.ghost{background:transparent; border:1px solid var(--border); color:var(--ink)}
+  .results{display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:12px; margin-top:12px}
+  .card{background:var(--card); border:1px solid var(--border); border-radius:14px; padding:14px}
+  .title{font-weight:700; margin:0 0 2px; font-size:15px}
+  .meta{color:var(--muted); font-size:12px; margin-bottom:8px}
   .tags{display:flex; gap:6px; flex-wrap:wrap}
-  .tag{font-size:11px; padding:4px 10px; border:1px solid var(--border); border-radius:999px; color:var(--inkSoft); background:color-mix(in oklab, var(--bgSoft) 90%, black 0%)}
-
-  /* Empty state */
-  .empty{display:grid; place-items:center; text-align:center; padding:36px; color:var(--muted)}
-  .empty .bubble{
-    display:inline-block; padding:10px 12px; border-radius:999px; background:var(--chip);
-    border:1px solid var(--border); margin-top:8px; font-size:12px
+  .tag{font-size:11px; padding:4px 8px; border:1px solid var(--border); border-radius:999px; color:var(--dim)}
+  .toolbar{display:flex; gap:8px; flex-wrap:wrap; align-items:center}
+  .pill{display:flex; gap:8px; align-items:center; background:#0d1117; border:1px solid var(--border); padding:8px 10px; border-radius:999px; color:var(--dim)}
+  .muted{color:var(--muted)} .counts{margin-left:auto; color:var(--dim); font-size:13px}
+  a.link{color:var(--accent); text-decoration:none}
+  *{-webkit-tap-highlight-color:transparent}
+  input,button{font-size:16px} /* prevent iOS zoom */
+  @media (max-width:640px){
+    .wrap{padding:16px}
+    .toolbar{flex-direction:column; align-items:stretch; gap:10px}
+    .search{width:100%; min-width:0}
+    .btn{width:100%}
+    .chip{padding:10px 12px; margin:2px 0}
+    .results{grid-template-columns:repeat(auto-fill,minmax(200px,1fr))}
   }
 
-  /* Toast */
-  .toast{
-    position:fixed; bottom:16px; left:50%; transform:translateX(-50%); background:linear-gradient(180deg,#133825,#0f2d20);
-    border:1px solid #1c5641; color:#baf0db; padding:10px 14px; border-radius:12px; display:none; z-index:60;
-    box-shadow: var(--shadow)
-  }
-
-  /* Drawer */
+  /* Suggest drawer */
   .drawer{position:fixed; inset:0; display:none; align-items:stretch; z-index:50}
   .drawer.open{display:flex}
   .shade{flex:1; background:rgba(0,0,0,.5)}
@@ -136,38 +57,20 @@
   .input, .select, .textarea{width:100%; background:#0b0f15; border:1px solid var(--border); color:var(--ink);
                              border-radius:10px; padding:10px 12px}
   .textarea{min-height:84px; resize:vertical}
+  .note{font-size:12px; color:var(--muted); margin-top:6px}
   .row2{display:flex; gap:8px; flex-wrap:wrap}
   .err{color:var(--danger); font-size:12px; display:none}
-
-  /* Mobile */
-  *{-webkit-tap-highlight-color:transparent}
-  input,button{font-size:16px}
-  @media (max-width:640px){
-    .wrap{padding:16px}
-    .toolbar{flex-direction:column; align-items:stretch; gap:10px}
-    .search{width:100%; min-width:0}
-    .btn{width:100%}
-    .chip{padding:10px 12px; margin:2px 0}
-    .results{grid-template-columns:repeat(auto-fill,minmax(200px,1fr))}
-    .panel.sticky{position:static}
-  }
+  .toast{position:fixed; bottom:16px; left:50%; transform:translateX(-50%); background:#14241c; border:1px solid #194d3d;
+         color:#b6f0d8; padding:10px 14px; border-radius:10px; display:none; z-index:60}
 </style>
 </head>
 <body>
   <div class="wrap">
-    <div class="topbar">
-      <div class="brand">
-        <div class="logo">SY</div>
-        <div>
-          <h1>Sydney Activity Picker <span class="muted" style="font-size:12px">v3.2</span></h1>
-          <div class="sub">Tick tags, choose category/indoor–outdoor, search… then <b>Surprise me</b> or pick from the list.</div>
-        </div>
-      </div>
-      <button class="btn secondary toggle" id="themeToggle" aria-label="Toggle theme">🌙/☀️</button>
-    </div>
+    <h1>Sydney Activity Picker <span class="muted" style="font-size:12px">v3.1 (Google Sheet + tag checklist)</span></h1>
+    <div class="sub">Tick tags, choose category/indoor–outdoor, search… then click <b>Surprise me</b> or pick from the list.</div>
 
     <!-- Controls -->
-    <div class="panel sticky">
+    <div class="panel">
       <div class="row toolbar">
         <div class="pill" role="radiogroup" aria-label="Category">
           <label><input type="radio" name="cat" value="All" checked> All</label>
@@ -206,7 +109,7 @@
     <div class="panel2">
       <div class="row2" style="justify-content:space-between; align-items:center">
         <h3 style="margin:0">Suggest an activity</h3>
-        <button class="btn secondary" id="xClose">Close</button>
+        <button class="btn ghost" id="xClose">Close</button>
       </div>
 
       <div class="field">
@@ -315,7 +218,7 @@ async function loadApprovedFromSheet(){
       tags: (o['Tags'] || '').split(';').map(t => t.trim()).filter(Boolean)
     })).filter(x => x.name && (x.category==='Seasonal' || x.category==='Permanent'));
 
-    add.forEach(a => a._tagStr = ";" + a.tags.map(norm).join(";") + ";";
+    add.forEach(a => a._tagStr = ";" + a.tags.map(norm).join(";") + ";");
 
     if (add.length){
       activities.push(...add);
@@ -372,19 +275,7 @@ function matches(a, st){
 }
 function render(list){
   const box=$("#results"); box.innerHTML="";
-  if(!list.length){
-    const wrap = document.createElement("div");
-    wrap.className = "empty";
-    wrap.innerHTML = `
-      <div>
-        <div style="font-weight:700;font-size:15px;margin-bottom:6px">No matches</div>
-        <div class="muted">Try removing a tag or two, or clearing Indoor/Outdoor.</div>
-        <div class="bubble">Tip: chips use <b>AND</b> logic</div>
-      </div>`;
-    box.append(wrap);
-    $("#count").textContent="0 matches";
-    return;
-  }
+  if(!list.length){ box.append(el("div","muted","No matches. Try fewer filters.")); $("#count").textContent="0 matches"; return; }
   for(const a of list){
     const card=el("div","card");
     card.append(el("div","title",a.name));
@@ -430,6 +321,7 @@ function buildTagChecklist() {
 /* ---------- Suggest form handlers ---------- */
 const drawer = $("#drawer"), toast=$("#toast");
 function openDrawer(){
+  // optional reset each open
   document.querySelectorAll("#f_tags_wrap input[type=checkbox]").forEach(cb=>{
     cb.checked = false; cb.parentElement.classList.remove("active");
   });
@@ -472,16 +364,6 @@ async function submitSuggestion(){
     showToast("Sorry, something went wrong. Try again?");
   }
 }
-
-/* ---------- Theme toggle ---------- */
-const themeToggle = document.getElementById("themeToggle");
-function applyTheme(t){ document.documentElement.classList.toggle('light', t==='light'); localStorage.setItem('theme', t); }
-const saved = localStorage.getItem('theme') || (matchMedia('(prefers-color-scheme: light)').matches ? 'light':'dark');
-applyTheme(saved);
-themeToggle.addEventListener('click', ()=>{
-  const now = document.documentElement.classList.contains('light') ? 'dark' : 'light';
-  applyTheme(now);
-});
 
 /* ---------- Update & events ---------- */
 function update(){ const st=getState(); const list=activities.filter(a=>matches(a,st)); render(list); writeHash(st); }
