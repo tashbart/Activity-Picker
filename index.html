@@ -4,16 +4,21 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Sydney Activity Picker</title>
+<meta name="description" content="Pick activities by tags like Indoors, Cultural, Nighttime, Scenic, etc.">
 <style>
-  :root{ --bg:#0b0c10; --card:#111218; --ink:#e6e7ee; --dim:#aeb1c6; --accent:#7bdcbe; --chip:#1b1e29; --chipOn:#133229; --muted:#7f86a1; --border:#242636; }
+  :root{
+    --bg:#0b0c10; --card:#111218; --ink:#e6e7ee; --dim:#aeb1c6; --accent:#7bdcbe;
+    --chip:#1b1e29; --chipOn:#133229; --muted:#7f86a1; --border:#242636;
+  }
   html,body{height:100%;}
   body{margin:0; font-family:Inter,system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif; background:var(--bg); color:var(--ink);}
   .wrap{max-width:1100px; margin:auto; padding:24px;}
-  h1{font-size:clamp(22px, 3vw, 32px); margin:0 0 12px;}
+  h1{font-size:clamp(22px,3vw,32px); margin:0 0 12px;}
   .sub{color:var(--dim); margin-bottom:20px}
   .panel{background:var(--card); border:1px solid var(--border); border-radius:14px; padding:16px; margin-bottom:16px}
   .row{display:flex; gap:12px; flex-wrap:wrap; align-items:center}
-  .chip{position:relative; border:1px solid var(--border); background:var(--chip); color:var(--ink); padding:8px 10px; border-radius:999px; cursor:pointer; user-select:none; font-size:13px}
+  .chip{position:relative; border:1px solid var(--border); background:var(--chip); color:var(--ink);
+        padding:8px 10px; border-radius:999px; cursor:pointer; user-select:none; font-size:13px}
   .chip input{position:absolute; opacity:0; inset:0; width:100%; height:100%; cursor:pointer}
   .chip.active{background:var(--chipOn); border-color:#1e7c61}
   .search{flex:1; min-width:220px}
@@ -30,15 +35,26 @@
   .pill{display:flex; gap:8px; align-items:center; background:#0d1117; border:1px solid var(--border); padding:8px 10px; border-radius:999px; color:var(--dim)}
   .muted{color:var(--muted)} .counts{margin-left:auto; color:var(--dim); font-size:13px}
   a.link{color:var(--accent); text-decoration:none}
-  *{-webkit-tap-highlight-color:transparent} input,button{font-size:16px}
-  @media (max-width:640px){ .wrap{padding:16px} .toolbar{flex-direction:column; align-items:stretch; gap:10px} .search{width:100%; min-width:0} .btn{width:100%} .chip{padding:10px 12px; margin:2px 0} .results{grid-template-columns:repeat(auto-fill,minmax(200px,1fr))}}
+
+  /* Mobile tweaks */
+  *{-webkit-tap-highlight-color:transparent}
+  input,button{font-size:16px} /* prevent iOS zoom */
+  @media (max-width:640px){
+    .wrap{padding:16px}
+    .toolbar{flex-direction:column; align-items:stretch; gap:10px}
+    .search{width:100%; min-width:0}
+    .btn{width:100%}
+    .chip{padding:10px 12px; margin:2px 0}
+    .results{grid-template-columns:repeat(auto-fill,minmax(200px,1fr))}
+  }
 </style>
 </head>
 <body>
   <div class="wrap">
-    <h1>Sydney Activity Picker <span class="muted" style="font-size:12px">v1.3</span></h1>
+    <h1>Sydney Activity Picker <span class="muted" style="font-size:12px">v2.0 (GitHub suggestions)</span></h1>
     <div class="sub">Tick tags, choose category/indoor–outdoor, search… then click <b>Surprise me</b> or pick from the list.</div>
 
+    <!-- Controls -->
     <div class="panel">
       <div class="row toolbar">
         <div class="pill" role="radiogroup" aria-label="Category">
@@ -46,34 +62,51 @@
           <label><input type="radio" name="cat" value="Seasonal"> Seasonal</label>
           <label><input type="radio" name="cat" value="Permanent"> Permanent</label>
         </div>
+
         <div class="pill" aria-label="Indoor/Outdoor">
           <label><input type="checkbox" id="indoors"> Indoors</label>
           <label><input type="checkbox" id="outdoors"> Outdoors</label>
         </div>
-        <div class="search"><input id="q" type="text" placeholder="Search name or tags…"></div>
+
+        <div class="search">
+          <input id="q" type="text" placeholder="Search name or tags…">
+        </div>
+
         <button class="btn" id="randomBtn">🎲 Surprise me</button>
         <button class="btn secondary" id="clearBtn">Clear</button>
-        <button class="btn secondary" id="dbgBtn" title="Toggle debug">Debug</button>
+        <button class="btn secondary" id="suggestBtn">Suggest an activity</button>
         <div class="counts" id="count"></div>
       </div>
+
       <div class="row" id="tagChips" style="margin-top:10px"></div>
-      <div class="muted" style="margin-top:6px">Tip: filters use <b>AND</b> logic. (e.g., Indoors + Cultural + Nighttime)</div>
-      <pre id="debug" class="muted" style="display:none; font-size:12px; background:#0d1117; padding:8px; border-radius:8px; border:1px solid var(--border); overflow:auto"></pre>
+      <div class="muted" style="margin-top:6px">Filters use <b>AND</b> logic. (e.g., Indoors + Cultural + Nighttime)</div>
     </div>
 
+    <!-- Results -->
     <div class="results" id="results"></div>
-    <div class="muted" style="margin-top:14px">State is saved in the URL so you can bookmark combos. (<a href="#" class="link" id="shareLink">copy current link</a>)</div>
+
+    <div class="muted" style="margin-top:14px">
+      State is saved in the URL so you can bookmark combos. (<a href="#" class="link" id="shareLink">copy current link</a>)
+    </div>
   </div>
 
 <script>
-/* Helpers */
-const row=(name,category,tags)=>({name,category,tags});
-const norm=s=>(s||"").toString().trim().toLowerCase();
-const $=sel=>document.querySelector(sel);
-const el=(t,c,txt)=>Object.assign(document.createElement(t),{className:c||"",textContent:txt||""});
+/* ================== CONFIG (edit these two lines) ================== */
+// 1) Where the Issue Form lives (opens in a new tab)
+const ISSUE_FORM_URL = "https://github.com/YOURUSER/YOURREPO/issues/new?template=suggest.yml";
+// 2) Raw URL to the approved suggestions JSON on main branch
+const SUGGESTIONS_URL = "https://raw.githubusercontent.com/YOURUSER/YOURREPO/main/suggestions.json";
+/* ================================================================== */
 
-/* Data */
-const activities=[
+/* ---------- Helpers ---------- */
+const row = (name, category, tags) => ({name, category, tags});
+const norm = s => (s||"").toString().trim().toLowerCase();
+const $ = sel => document.querySelector(sel);
+const el = (t,c,txt)=>Object.assign(document.createElement(t),{className:c||"",textContent:txt||""});
+
+/* ---------- Base data ---------- */
+const activities = [
+  // Seasonal
   row("Bushwalking and picnic","Seasonal",["Outdoors","Active","Scenic"]),
   row("Centennial Park picnic","Seasonal",["Outdoors","Relaxing","Food & Drink"]),
   row("Wendy’s Secret Garden","Seasonal",["Outdoors","Scenic"]),
@@ -83,6 +116,7 @@ const activities=[
   row("Blue Mountains overnight","Seasonal",["Day trip","Outdoors","Active","Scenic"]),
   row("Kayaking","Seasonal",["Water activity","Outdoors","Active"]),
   row("Stargazing at Sydney Observatory","Seasonal",["Outdoors","Nighttime","Scenic"]),
+  // Permanent
   row("Art gallery + Botanic gardens picnic","Permanent",["Cultural","Outdoors","Scenic"]),
   row("Biennale","Permanent",["Cultural","Event","Outdoors"]),
   row("Art after hours","Permanent",["Cultural","Nighttime","Indoors"]),
@@ -118,116 +152,178 @@ const activities=[
   row("Life drawing","Permanent",["Creative","Cultural","Indoors"]),
 ];
 
-/* Precompute normalized tag string ;tag1;tag2; for rock-solid contains checks */
-activities.forEach(a=>{ a._tagStr = ";" + a.tags.map(norm).join(";") + ";"; });
+/* Precompute normalized tag string for bullet-proof contains checks */
+activities.forEach(a => { a._tagStr = ";" + a.tags.map(norm).join(";") + ";"; });
 
-/* Build chips from normalized unique keys */
-const ALL_TAGS = Array.from(new Set(activities.flatMap(a=>a.tags.map(norm))))
-  .sort()
-  .map(t => ({key:t, label: t.replace(/\b\w/g,c=>c.toUpperCase())}));
+/* ---------- Chips (built dynamically) ---------- */
+let ALL_TAGS = [];
+function toTitleCaseKey(k){ return k.replace(/\b\w/g, c=>c.toUpperCase()); }
 
-const tagWrap = $("#tagChips");
-ALL_TAGS.forEach(({key,label})=>{
-  const lab = el("label","chip");
-  const inp = document.createElement("input");
-  inp.type = "checkbox";
-  inp.dataset.tag = key;   // ✅ ensure key is stored
-  inp.value = key;         // ✅ ensure value is also stored
-  inp.setAttribute("aria-label", label);
-  inp.addEventListener("change", ()=>{
-    lab.classList.toggle("active", inp.checked);
-    update();
+function rebuildChipsFromActivities(preserveSelection=true){
+  // capture current selections if preserving
+  const prev = preserveSelection
+    ? new Set([...document.querySelectorAll('#tagChips input[type="checkbox"]:checked')].map(i=>i.dataset.tag))
+    : new Set();
+
+  const keys = Array.from(new Set(activities.flatMap(a => a.tags.map(norm)))).sort();
+  ALL_TAGS = keys.map(k => ({ key: k, label: toTitleCaseKey(k) }));
+
+  const tagWrap = $("#tagChips");
+  tagWrap.innerHTML = "";
+
+  ALL_TAGS.forEach(({key,label})=>{
+    const lab = el("label","chip");
+    const inp = document.createElement("input");
+    inp.type = "checkbox";
+    inp.dataset.tag = key;  // normalized key used for filtering
+    inp.value = key;
+    inp.setAttribute("aria-label", label);
+    // restore if previously selected
+    if (prev.has(key)) { inp.checked = true; lab.classList.add("active"); }
+    inp.addEventListener("change", ()=>{
+      lab.classList.toggle("active", inp.checked);
+      update();
+    });
+    lab.append(inp, document.createTextNode(" " + label));
+    tagWrap.append(lab);
   });
-  lab.append(inp, document.createTextNode(" " + label));
-  tagWrap.append(lab);
-});
-
-/* Read controls */
-function getState(){
-  const cat=[...document.querySelectorAll('input[name="cat"]')].find(i=>i.checked).value;
-  const indoors=$("#indoors").checked, outdoors=$("#outdoors").checked;
-  const q=$("#q").value.trim().toLowerCase();
-  const tags=[...document.querySelectorAll('#tagChips input[type="checkbox"]')].filter(i=>i.checked).map(i=>i.dataset.tag); // normalized
-  return {cat,indoors,outdoors,q,tags};
 }
 
-/* Match */
-function matches(a,st){
+/* ---------- Load approved suggestions from GitHub ---------- */
+async function loadApprovedFromGitHub(){
+  try{
+    const resp = await fetch(SUGGESTIONS_URL, { cache: "no-store" });
+    if(!resp.ok) return;
+    const extra = await resp.json(); // [{name, category, tags}]
+    // Basic validation + dedupe by name|category (case-insensitive)
+    const seen = new Set(activities.map(a => (norm(a.name)+"|"+a.category)));
+    const add = [];
+    for(const a of extra){
+      if(!a || !a.name || !a.category || !Array.isArray(a.tags)) continue;
+      const key = norm(a.name)+"|"+a.category;
+      if(seen.has(key)) continue;
+      const tags = a.tags.map(t=>t && t.toString().trim()).filter(Boolean);
+      const obj = { name:a.name, category:a.category, tags };
+      obj._tagStr = ";" + tags.map(norm).join(";") + ";";
+      add.push(obj);
+      seen.add(key);
+    }
+    if(add.length){
+      activities.push(...add);
+      rebuildChipsFromActivities(true);
+      update();
+    }
+  }catch(e){
+    console.warn("Could not load suggestions.json", e);
+  }
+}
+
+/* ---------- Controls & matching ---------- */
+function getState(){
+  const cat = [...document.querySelectorAll('input[name="cat"]')].find(i=>i.checked).value;
+  const indoors = $("#indoors").checked;
+  const outdoors = $("#outdoors").checked;
+  const q = $("#q").value.trim().toLowerCase();
+  const tags = [...document.querySelectorAll('#tagChips input[type="checkbox"]')]
+    .filter(i=>i.checked).map(i=>i.dataset.tag); // normalized keys
+  return {cat, indoors, outdoors, q, tags};
+}
+
+function matches(a, st){
   if(st.cat!=="All" && a.category!==st.cat) return false;
   if(st.indoors && !a._tagStr.includes(";indoors;")) return false;
   if(st.outdoors && !a._tagStr.includes(";outdoors;")) return false;
   for(const t of st.tags){ if(!a._tagStr.includes(";"+t+";")) return false; } // AND
   if(st.q){
-    const hay=(a.name+" "+a.category+" "+a.tags.join(" ")).toLowerCase();
+    const hay = (a.name+" "+a.category+" "+a.tags.join(" ")).toLowerCase();
     if(!hay.includes(st.q)) return false;
   }
   return true;
 }
 
-/* Render + debug */
-function render(list, st){
-  const box=$("#results"); box.innerHTML="";
-  if(!list.length){ box.append(el("div","muted","No matches. Try fewer filters.")); $("#count").textContent="0 matches"; }
-  else{
-    for(const a of list){
-      const card=el("div","card");
-      card.append(el("div","title",a.name));
-      card.append(el("div","meta",a.category));
-      const tags=el("div","tags"); a.tags.forEach(t=>tags.append(el("span","tag",t))); card.append(tags);
-      box.append(card);
-    }
-    $("#count").textContent=`${list.length} match${list.length===1?"":"es"}`;
+/* ---------- Render ---------- */
+function render(list){
+  const box = $("#results");
+  box.innerHTML = "";
+  if(!list.length){
+    box.append(el("div","muted","No matches. Try fewer filters."));
+    $("#count").textContent = "0 matches";
+    return;
   }
-  const dbg=$("#debug");
-  if(dbg.style.display!=="none"){
-    dbg.textContent = JSON.stringify({
-      category: st.cat, indoors: st.indoors, outdoors: st.outdoors,
-      selectedTags: st.tags, search: st.q, matchCount: list.length
-    }, null, 2);
+  for(const a of list){
+    const card = el("div","card");
+    card.append(el("div","title",a.name));
+    card.append(el("div","meta",a.category));
+    const tags = el("div","tags");
+    a.tags.forEach(t => tags.append(el("span","tag",t)));
+    card.append(tags);
+    box.append(card);
   }
+  $("#count").textContent = `${list.length} match${list.length===1?"":"es"}`;
 }
 
-/* URL state */
-function writeHash(st){ const o={c:st.cat,i:st.indoors?1:0,o:st.outdoors?1:0,q:st.q,t:st.tags}; location.hash=encodeURIComponent(JSON.stringify(o)); }
-function readHash(){ if(!location.hash) return null; try{ return JSON.parse(decodeURIComponent(location.hash.slice(1))); }catch{return null;} }
+/* ---------- URL state ---------- */
+function writeHash(st){
+  const o = {c:st.cat,i:st.indoors?1:0,o:st.outdoors?1:0,q:st.q,t:st.tags};
+  location.hash = encodeURIComponent(JSON.stringify(o));
+}
+function readHash(){
+  if(!location.hash) return null;
+  try { return JSON.parse(decodeURIComponent(location.hash.slice(1))); }
+  catch { return null; }
+}
 function applyHash(o){
   if(!o) return;
-  [...document.querySelectorAll('input[name="cat"]')].forEach(r=> r.checked=(r.value===o.c));
-  $("#indoors").checked=!!o.i; $("#outdoors").checked=!!o.o; $("#q").value=o.q||"";
-  const want=new Set((o.t||[]).map(norm));
+  [...document.querySelectorAll('input[name="cat"]')].forEach(r=> r.checked = (r.value===o.c));
+  $("#indoors").checked = !!o.i; $("#outdoors").checked = !!o.o;
+  $("#q").value = o.q || "";
+  const want = new Set((o.t||[]).map(norm));
   document.querySelectorAll('#tagChips input[type="checkbox"]').forEach(cb=>{
-    cb.checked=want.has(cb.dataset.tag); cb.parentElement.classList.toggle("active",cb.checked);
+    cb.checked = want.has(cb.dataset.tag);
+    cb.parentElement.classList.toggle("active", cb.checked);
   });
 }
 
-/* Update + controls */
+/* ---------- Update & events ---------- */
 function update(){
-  const st=getState();
-  const list=activities.filter(a=>matches(a,st));
-  render(list, st); writeHash(st);
+  const st = getState();
+  const list = activities.filter(a=>matches(a,st));
+  render(list);
+  writeHash(st);
 }
-$("#randomBtn").addEventListener("click",()=>{
-  const st=getState(); const list=activities.filter(a=>matches(a,st));
+
+$("#randomBtn").addEventListener("click", ()=>{
+  const st = getState();
+  const list = activities.filter(a=>matches(a,st));
   if(!list.length) return alert("No matches to choose from. Loosen filters?");
-  const pick=list[Math.floor(Math.random()*list.length)]; alert("🎉 "+pick.name);
+  const pick = list[Math.floor(Math.random()*list.length)];
+  alert("🎉 " + pick.name);
 });
-$("#clearBtn").addEventListener("click",()=>{
-  $("#q").value=""; $("#indoors").checked=false; $("#outdoors").checked=false;
-  document.querySelector('input[name="cat"][value="All"]').checked=true;
-  document.querySelectorAll('#tagChips input[type="checkbox"]').forEach(cb=>{ cb.checked=false; cb.parentElement.classList.remove("active"); });
+$("#clearBtn").addEventListener("click", ()=>{
+  $("#q").value = "";
+  $("#indoors").checked = false;
+  $("#outdoors").checked = false;
+  document.querySelector('input[name="cat"][value="All"]').checked = true;
+  document.querySelectorAll('#tagChips input[type="checkbox"]').forEach(cb=>{
+    cb.checked = false; cb.parentElement.classList.remove("active");
+  });
   update();
 });
-$("#dbgBtn").addEventListener("click",()=>{
-  const dbg=$("#debug"); dbg.style.display=(dbg.style.display==="none"?"block":"none"); update();
+$("#suggestBtn").addEventListener("click", ()=> window.open(ISSUE_FORM_URL, "_blank"));
+$("#q").addEventListener("input", update);
+$("#shareLink").addEventListener("click", e=>{
+  e.preventDefault();
+  navigator.clipboard.writeText(location.href).then(()=> alert("Link copied!"));
 });
-$("#q").addEventListener("input",update);
-$("#shareLink").addEventListener("click",e=>{ e.preventDefault(); navigator.clipboard.writeText(location.href).then(()=>alert("Link copied!")); });
-document.querySelectorAll('input[name="cat"]').forEach(r=> r.addEventListener("change",update));
-$("#indoors").addEventListener("change",update);
-$("#outdoors").addEventListener("change",update);
+document.querySelectorAll('input[name="cat"]').forEach(r=> r.addEventListener("change", update));
+$("#indoors").addEventListener("change", update);
+$("#outdoors").addEventListener("change", update);
 
-/* Init */
-applyHash(readHash()); update();
+/* ---------- Init ---------- */
+rebuildChipsFromActivities(false);
+applyHash(readHash());
+update();
+loadApprovedFromGitHub();
 </script>
 </body>
 </html>
