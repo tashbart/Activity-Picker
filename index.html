@@ -8,7 +8,7 @@
 <style>
   :root{
     --bg:#0b0c10; --card:#111218; --ink:#e6e7ee; --dim:#aeb1c6; --accent:#7bdcbe;
-    --chip:#1b1e29; --chipOn:#133229; --muted:#7f86a1; --border:#242636;
+    --chip:#1b1e29; --chipOn:#133229; --muted:#7f86a1; --border:#242636; --danger:#e06b6b;
   }
   html,body{height:100%;}
   body{margin:0; font-family:Inter,system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif; background:var(--bg); color:var(--ink);}
@@ -25,6 +25,7 @@
   .search input{width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--border); background:#0e1016; color:#e6e7ee}
   .btn{background:var(--accent); color:#0a0f10; border:none; padding:10px 14px; border-radius:10px; cursor:pointer; font-weight:600}
   .btn.secondary{background:#1b2130; color:#e6e7ee; border:1px solid var(--border)}
+  .btn.ghost{background:transparent; border:1px solid var(--border); color:var(--ink)}
   .results{display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:12px; margin-top:12px}
   .card{background:var(--card); border:1px solid var(--border); border-radius:14px; padding:14px}
   .title{font-weight:700; margin:0 0 2px; font-size:15px}
@@ -35,8 +36,6 @@
   .pill{display:flex; gap:8px; align-items:center; background:#0d1117; border:1px solid var(--border); padding:8px 10px; border-radius:999px; color:var(--dim)}
   .muted{color:var(--muted)} .counts{margin-left:auto; color:var(--dim); font-size:13px}
   a.link{color:var(--accent); text-decoration:none}
-
-  /* Mobile tweaks */
   *{-webkit-tap-highlight-color:transparent}
   input,button{font-size:16px} /* prevent iOS zoom */
   @media (max-width:640px){
@@ -47,11 +46,27 @@
     .chip{padding:10px 12px; margin:2px 0}
     .results{grid-template-columns:repeat(auto-fill,minmax(200px,1fr))}
   }
+
+  /* Suggest drawer */
+  .drawer{position:fixed; inset:0; display:none; align-items:stretch; z-index:50}
+  .drawer.open{display:flex}
+  .shade{flex:1; background:rgba(0,0,0,.5)}
+  .panel2{width:min(520px, 92vw); background:#0e1118; border-left:1px solid var(--border); padding:18px; overflow:auto}
+  .field{margin:10px 0}
+  .label{font-size:12px; color:var(--muted); margin-bottom:6px}
+  .input, .select, .textarea{width:100%; background:#0b0f15; border:1px solid var(--border); color:var(--ink);
+                             border-radius:10px; padding:10px 12px}
+  .textarea{min-height:84px; resize:vertical}
+  .note{font-size:12px; color:var(--muted); margin-top:6px}
+  .row2{display:flex; gap:8px; flex-wrap:wrap}
+  .err{color:var(--danger); font-size:12px; display:none}
+  .toast{position:fixed; bottom:16px; left:50%; transform:translateX(-50%); background:#14241c; border:1px solid #194d3d;
+         color:#b6f0d8; padding:10px 14px; border-radius:10px; display:none; z-index:60}
 </style>
 </head>
 <body>
   <div class="wrap">
-    <h1>Sydney Activity Picker <span class="muted" style="font-size:12px">v2.0 (GitHub suggestions)</span></h1>
+    <h1>Sydney Activity Picker <span class="muted" style="font-size:12px">v3.0 (Google Sheet)</span></h1>
     <div class="sub">Tick tags, choose category/indoor–outdoor, search… then click <b>Surprise me</b> or pick from the list.</div>
 
     <!-- Controls -->
@@ -68,13 +83,11 @@
           <label><input type="checkbox" id="outdoors"> Outdoors</label>
         </div>
 
-        <div class="search">
-          <input id="q" type="text" placeholder="Search name or tags…">
-        </div>
+        <div class="search"><input id="q" type="text" placeholder="Search name or tags…"></div>
 
         <button class="btn" id="randomBtn">🎲 Surprise me</button>
         <button class="btn secondary" id="clearBtn">Clear</button>
-        <button class="btn secondary" id="suggestBtn">Suggest an activity</button>
+        <button class="btn ghost" id="openSuggest">Suggest an activity</button>
         <div class="counts" id="count"></div>
       </div>
 
@@ -90,13 +103,55 @@
     </div>
   </div>
 
+  <!-- Suggest Drawer -->
+  <div class="drawer" id="drawer">
+    <div class="shade" id="closeDrawer"></div>
+    <div class="panel2">
+      <div class="row2" style="justify-content:space-between; align-items:center">
+        <h3 style="margin:0">Suggest an activity</h3>
+        <button class="btn ghost" id="xClose">Close</button>
+      </div>
+
+      <div class="field">
+        <div class="label">Activity *</div>
+        <input class="input" id="f_activity" placeholder="e.g., Sunset picnic at Barangaroo">
+        <div class="err" id="e_activity">Please enter an activity.</div>
+      </div>
+
+      <div class="field">
+        <div class="label">Category *</div>
+        <select class="select" id="f_category">
+          <option value="">Select…</option>
+          <option>Seasonal</option>
+          <option>Permanent</option>
+        </select>
+        <div class="err" id="e_category">Please choose a category.</div>
+      </div>
+
+      <div class="field">
+        <div class="label">Tags *</div>
+        <textarea class="textarea" id="f_tags" placeholder="Outdoors; Scenic; Food & Drink"></textarea>
+        <div class="note">Use semicolons between tags. Example: <em>Outdoors; Scenic; Nighttime</em></div>
+        <div class="err" id="e_tags">Please enter at least one tag.</div>
+      </div>
+
+      <div class="row2" style="margin-top:12px">
+        <button class="btn" id="submitSuggest">Submit</button>
+        <button class="btn secondary" id="cancelSuggest">Cancel</button>
+      </div>
+
+      <div class="note" style="margin-top:10px">Submissions go to a Google Sheet for review. Only approved ideas appear on the site.</div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast">Thanks! Your idea was submitted for review.</div>
+
 <script>
 /* ================== CONFIG (edit these two lines) ================== */
-// 1) Where the Issue Form lives (opens in a new tab)
-const ISSUE_FORM_URL = "https://github.com/tashbart/Activity-Picker/issues/new?template=suggest.yml";
-
-// 2) Raw URL to the approved suggestions JSON on main branch
-const SUGGESTIONS_URL = "https://raw.githubusercontent.com/tashbart/Activity-Picker/main/suggestions.json";
+// Apps Script Web App URL (from your deployment)
+const SUBMIT_URL     = "https://script.google.com/macros/s/AKfycbygits3-jhTBT_qYQktpzju62qf7aiNRRlF8d4KWVe5tuDEzWuUouHd1g2lMCRewOY/exec";
+// Published CSV link for your sheet (File → Share → Publish to web → CSV)
+const SHEET_CSV_URL  = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQglaw4_81WylM20K4VT2fFmBARr8CcSjBu23svzco-2z_alzRn1mj9oM_r56M6wecL0gnN9Bd8qXYn/pub?gid=0&single=true&output=csv";
 /* ================================================================== */
 
 /* ---------- Helpers ---------- */
@@ -153,16 +208,15 @@ const activities = [
   row("Life drawing","Permanent",["Creative","Cultural","Indoors"]),
 ];
 
-/* Precompute normalized tag string for bullet-proof contains checks */
+/* Precompute normalized tag string for bullet-proof checks */
 activities.forEach(a => { a._tagStr = ";" + a.tags.map(norm).join(";") + ";"; });
 
-/* ---------- Chips (built dynamically) ---------- */
+/* ---------- Chips (dynamic) ---------- */
 let ALL_TAGS = [];
 function toTitleCaseKey(k){ return k.replace(/\b\w/g, c=>c.toUpperCase()); }
 
-function rebuildChipsFromActivities(preserveSelection=true){
-  // capture current selections if preserving
-  const prev = preserveSelection
+function rebuildChipsFromActivities(preserve=true){
+  const prev = preserve
     ? new Set([...document.querySelectorAll('#tagChips input[type="checkbox"]:checked')].map(i=>i.dataset.tag))
     : new Set();
 
@@ -176,47 +230,62 @@ function rebuildChipsFromActivities(preserveSelection=true){
     const lab = el("label","chip");
     const inp = document.createElement("input");
     inp.type = "checkbox";
-    inp.dataset.tag = key;  // normalized key used for filtering
-    inp.value = key;
-    inp.setAttribute("aria-label", label);
-    // restore if previously selected
+    inp.dataset.tag = key; inp.value = key; inp.setAttribute("aria-label", label);
     if (prev.has(key)) { inp.checked = true; lab.classList.add("active"); }
-    inp.addEventListener("change", ()=>{
-      lab.classList.toggle("active", inp.checked);
-      update();
-    });
+    inp.addEventListener("change", ()=>{ lab.classList.toggle("active", inp.checked); update(); });
     lab.append(inp, document.createTextNode(" " + label));
     tagWrap.append(lab);
   });
 }
 
-/* ---------- Load approved suggestions from GitHub ---------- */
-async function loadApprovedFromGitHub(){
+/* ---------- Load APPROVED rows from Sheet (CSV) ---------- */
+async function loadApprovedFromSheet(){
   try{
-    const resp = await fetch(SUGGESTIONS_URL, { cache: "no-store" });
+    const resp = await fetch(SHEET_CSV_URL, { cache: "no-store" });
     if(!resp.ok) return;
-    const extra = await resp.json(); // [{name, category, tags}]
-    // Basic validation + dedupe by name|category (case-insensitive)
-    const seen = new Set(activities.map(a => (norm(a.name)+"|"+a.category)));
-    const add = [];
-    for(const a of extra){
-      if(!a || !a.name || !a.category || !Array.isArray(a.tags)) continue;
-      const key = norm(a.name)+"|"+a.category;
-      if(seen.has(key)) continue;
-      const tags = a.tags.map(t=>t && t.toString().trim()).filter(Boolean);
-      const obj = { name:a.name, category:a.category, tags };
-      obj._tagStr = ";" + tags.map(norm).join(";") + ";";
-      add.push(obj);
-      seen.add(key);
-    }
-    if(add.length){
+    const text = await resp.text();
+    const rows = parseCSV(text);
+    const objs = rowsToObjects(rows);
+    const approved = objs.filter(o => (o['Approved'] || '').toLowerCase() === 'true');
+
+    const add = approved.map(o => ({
+      name: o['Activity'],
+      category: o['Category'],
+      tags: (o['Tags'] || '').split(';').map(t => t.trim()).filter(Boolean)
+    })).filter(x => x.name && (x.category==='Seasonal' || x.category==='Permanent'));
+
+    add.forEach(a => a._tagStr = ";" + a.tags.map(norm).join(";") + ";");
+
+    if (add.length){
       activities.push(...add);
       rebuildChipsFromActivities(true);
       update();
     }
-  }catch(e){
-    console.warn("Could not load suggestions.json", e);
+  }catch(e){ console.warn('CSV load failed', e); }
+}
+
+// Tiny CSV parser (handles quotes)
+function parseCSV(text){
+  const rows=[]; let i=0, field="", row=[], inQ=false;
+  while(i<text.length){
+    const c=text[i];
+    if(inQ){
+      if(c=='"' && text[i+1]=='"'){ field+='"'; i+=2; continue; }
+      if(c=='"'){ inQ=false; i++; continue; }
+      field+=c; i++; continue;
+    }else{
+      if(c=='"'){ inQ=true; i++; continue; }
+      if(c==','){ row.push(field); field=""; i++; continue; }
+      if(c=='\n'){ row.push(field); rows.push(row); field=""; row=[]; i++; continue; }
+      field+=c; i++; continue;
+    }
   }
+  if(field.length||row.length){ row.push(field); rows.push(row); }
+  return rows;
+}
+function rowsToObjects(rows){
+  const [head,...body]=rows; if(!head) return [];
+  return body.map(r=>{ const o={}; head.forEach((h,idx)=>o[(h||'').trim()]= (r[idx]||'').trim()); return o; });
 }
 
 /* ---------- Controls & matching ---------- */
@@ -229,93 +298,85 @@ function getState(){
     .filter(i=>i.checked).map(i=>i.dataset.tag); // normalized keys
   return {cat, indoors, outdoors, q, tags};
 }
-
 function matches(a, st){
   if(st.cat!=="All" && a.category!==st.cat) return false;
   if(st.indoors && !a._tagStr.includes(";indoors;")) return false;
   if(st.outdoors && !a._tagStr.includes(";outdoors;")) return false;
-  for(const t of st.tags){ if(!a._tagStr.includes(";"+t+";")) return false; } // AND
+  for(const t of st.tags){ if(!a._tagStr.includes(";"+t+";")) return false; }
   if(st.q){
-    const hay = (a.name+" "+a.category+" "+a.tags.join(" ")).toLowerCase();
+    const hay=(a.name+" "+a.category+" "+a.tags.join(" ")).toLowerCase();
     if(!hay.includes(st.q)) return false;
   }
   return true;
 }
-
-/* ---------- Render ---------- */
 function render(list){
-  const box = $("#results");
-  box.innerHTML = "";
-  if(!list.length){
-    box.append(el("div","muted","No matches. Try fewer filters."));
-    $("#count").textContent = "0 matches";
-    return;
-  }
+  const box=$("#results"); box.innerHTML="";
+  if(!list.length){ box.append(el("div","muted","No matches. Try fewer filters.")); $("#count").textContent="0 matches"; return; }
   for(const a of list){
-    const card = el("div","card");
+    const card=el("div","card");
     card.append(el("div","title",a.name));
     card.append(el("div","meta",a.category));
-    const tags = el("div","tags");
-    a.tags.forEach(t => tags.append(el("span","tag",t)));
-    card.append(tags);
-    box.append(card);
+    const tags=el("div","tags"); a.tags.forEach(t=>tags.append(el("span","tag",t)));
+    card.append(tags); box.append(card);
   }
-  $("#count").textContent = `${list.length} match${list.length===1?"":"es"}`;
+  $("#count").textContent=`${list.length} match${list.length===1?"":"es"}`;
 }
 
 /* ---------- URL state ---------- */
-function writeHash(st){
-  const o = {c:st.cat,i:st.indoors?1:0,o:st.outdoors?1:0,q:st.q,t:st.tags};
-  location.hash = encodeURIComponent(JSON.stringify(o));
-}
-function readHash(){
-  if(!location.hash) return null;
-  try { return JSON.parse(decodeURIComponent(location.hash.slice(1))); }
-  catch { return null; }
-}
+function writeHash(st){ const o={c:st.cat,i:st.indoors?1:0,o:st.outdoors?1:0,q:st.q,t:st.tags}; location.hash=encodeURIComponent(JSON.stringify(o)); }
+function readHash(){ if(!location.hash) return null; try{return JSON.parse(decodeURIComponent(location.hash.slice(1)));}catch{return null;} }
 function applyHash(o){
   if(!o) return;
-  [...document.querySelectorAll('input[name="cat"]')].forEach(r=> r.checked = (r.value===o.c));
-  $("#indoors").checked = !!o.i; $("#outdoors").checked = !!o.o;
-  $("#q").value = o.q || "";
-  const want = new Set((o.t||[]).map(norm));
+  [...document.querySelectorAll('input[name="cat"]')].forEach(r=> r.checked=(r.value===o.c));
+  $("#indoors").checked=!!o.i; $("#outdoors").checked=!!o.o; $("#q").value=o.q||"";
+  const want=new Set((o.t||[]).map(norm));
   document.querySelectorAll('#tagChips input[type="checkbox"]').forEach(cb=>{
-    cb.checked = want.has(cb.dataset.tag);
-    cb.parentElement.classList.toggle("active", cb.checked);
+    cb.checked=want.has(cb.dataset.tag); cb.parentElement.classList.toggle("active",cb.checked);
   });
+}
+
+/* ---------- Suggest form handlers ---------- */
+const drawer = $("#drawer"), toast=$("#toast");
+function openDrawer(){ drawer.classList.add("open"); }
+function closeDrawer(){ drawer.classList.remove("open"); }
+function showToast(msg){ toast.textContent=msg; toast.style.display='block'; setTimeout(()=>toast.style.display='none', 2600); }
+
+async function submitSuggestion(){
+  // basic validation
+  const a=$("#f_activity").value.trim(), c=$("#f_category").value.trim(), t=$("#f_tags").value.trim();
+  $("#e_activity").style.display = a ? 'none' : 'block';
+  $("#e_category").style.display = c ? 'none' : 'block';
+  $("#e_tags").style.display     = t ? 'none' : 'block';
+  if(!a || !c || !t) return;
+
+  // URL-encoded POST (no preflight)
+  const body = new URLSearchParams({ activity:a, category:c, tags:t }).toString();
+  try{
+    await fetch(SUBMIT_URL, {
+      method:'POST',
+      mode:'no-cors',
+      headers:{ 'Content-Type':'application/x-www-form-urlencoded' },
+      body
+    });
+    closeDrawer();
+    $("#f_activity").value = ""; $("#f_category").value = ""; $("#f_tags").value = "";
+    showToast("Thanks! Your idea was submitted for review.");
+  }catch(e){
+    showToast("Sorry, something went wrong. Try again?");
+  }
 }
 
 /* ---------- Update & events ---------- */
-function update(){
-  const st = getState();
-  const list = activities.filter(a=>matches(a,st));
-  render(list);
-  writeHash(st);
-}
-
-$("#randomBtn").addEventListener("click", ()=>{
-  const st = getState();
-  const list = activities.filter(a=>matches(a,st));
-  if(!list.length) return alert("No matches to choose from. Loosen filters?");
-  const pick = list[Math.floor(Math.random()*list.length)];
-  alert("🎉 " + pick.name);
-});
-$("#clearBtn").addEventListener("click", ()=>{
-  $("#q").value = "";
-  $("#indoors").checked = false;
-  $("#outdoors").checked = false;
-  document.querySelector('input[name="cat"][value="All"]').checked = true;
-  document.querySelectorAll('#tagChips input[type="checkbox"]').forEach(cb=>{
-    cb.checked = false; cb.parentElement.classList.remove("active");
-  });
-  update();
-});
-$("#suggestBtn").addEventListener("click", ()=> window.open(ISSUE_FORM_URL, "_blank"));
+function update(){ const st=getState(); const list=activities.filter(a=>matches(a,st)); render(list); writeHash(st); }
+$("#randomBtn").addEventListener("click",()=>{ const st=getState(); const list=activities.filter(a=>matches(a,st)); if(!list.length) return alert("No matches to choose from. Loosen filters?"); const pick=list[Math.floor(Math.random()*list.length)]; alert("🎉 "+pick.name); });
+$("#clearBtn").addEventListener("click",()=>{ $("#q").value=""; $("#indoors").checked=false; $("#outdoors").checked=false; document.querySelector('input[name="cat"][value="All"]').checked=true; document.querySelectorAll('#tagChips input[type="checkbox"]').forEach(cb=>{ cb.checked=false; cb.parentElement.classList.remove("active"); }); update(); });
+$("#openSuggest").addEventListener("click", openDrawer);
+$("#closeDrawer").addEventListener("click", closeDrawer);
+$("#xClose").addEventListener("click", closeDrawer);
+$("#cancelSuggest").addEventListener("click", closeDrawer);
+$("#submitSuggest").addEventListener("click", submitSuggestion);
 $("#q").addEventListener("input", update);
-$("#shareLink").addEventListener("click", e=>{
-  e.preventDefault();
-  navigator.clipboard.writeText(location.href).then(()=> alert("Link copied!"));
-});
+$("#shareLink").addEventListener("click", e=>{ e.preventDefault(); navigator.clipboard.writeText(location.href).then(()=> alert("Link copied!")); });
 document.querySelectorAll('input[name="cat"]').forEach(r=> r.addEventListener("change", update));
 $("#indoors").addEventListener("change", update);
 $("#outdoors").addEventListener("change", update);
@@ -324,7 +385,7 @@ $("#outdoors").addEventListener("change", update);
 rebuildChipsFromActivities(false);
 applyHash(readHash());
 update();
-loadApprovedFromGitHub();
+loadApprovedFromSheet();
 </script>
 </body>
 </html>
