@@ -66,7 +66,7 @@
 </head>
 <body>
   <div class="wrap">
-    <h1>Sydney Activity Picker <span class="muted" style="font-size:12px">v3.0 (Google Sheet)</span></h1>
+    <h1>Sydney Activity Picker <span class="muted" style="font-size:12px">v3.1 (Google Sheet + tag checklist)</span></h1>
     <div class="sub">Tick tags, choose category/indoor–outdoor, search… then click <b>Surprise me</b> or pick from the list.</div>
 
     <!-- Controls -->
@@ -128,11 +128,12 @@
         <div class="err" id="e_category">Please choose a category.</div>
       </div>
 
+      <!-- CHECKLIST TAGS -->
       <div class="field">
         <div class="label">Tags *</div>
-        <textarea class="textarea" id="f_tags" placeholder="Outdoors; Scenic; Food & Drink"></textarea>
-        <div class="note">Use semicolons between tags. Example: <em>Outdoors; Scenic; Nighttime</em></div>
-        <div class="err" id="e_tags">Please enter at least one tag.</div>
+        <div id="f_tags_wrap" class="row2" style="gap:10px"></div>
+        <div class="note">Pick as many as you like.</div>
+        <div class="err" id="e_tags">Please choose at least one tag.</div>
       </div>
 
       <div class="row2" style="margin-top:12px">
@@ -154,15 +155,20 @@ const SUBMIT_URL     = "https://script.google.com/macros/s/AKfycbwdyK8Q7-uHW3u12
 const SHEET_CSV_URL  = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQglaw4_81WylM20K4VT2fFmBARr8CcSjBu23svzco-2z_alzRn1mj9oM_r56M6wecL0gnN9Bd8qXYn/pub?gid=0&single=true&output=csv";
 /* ================================================================== */
 
+/* Allowed tags for submissions (shown as checkboxes) */
+const TAG_OPTIONS = [
+  "Outdoors","Indoors","Active","Relaxing","Scenic","Cultural",
+  "Creative","Food & Drink","Nightlife","Animals","Day trip","Water activity"
+];
+
 /* ---------- Helpers ---------- */
 const row = (name, category, tags) => ({name, category, tags});
 const norm = s => (s||"").toString().trim().toLowerCase();
 const $ = sel => document.querySelector(sel);
 const el = (t,c,txt)=>Object.assign(document.createElement(t),{className:c||"",textContent:txt||""});
 
-/* ---------- Base data ---------- */
+/* ---------- Base data (optional seed; everything else comes from Sheet) ---------- */
 const activities = [
-  // Seasonal
   row("Bushwalking and picnic","Seasonal",["Outdoors","Active","Scenic"]),
 ];
 
@@ -293,19 +299,50 @@ function applyHash(o){
   });
 }
 
+/* ---------- Build tag checklist for submit drawer ---------- */
+function buildTagChecklist() {
+  const wrap = document.getElementById("f_tags_wrap");
+  wrap.innerHTML = "";
+  TAG_OPTIONS.forEach(t => {
+    const id = "tag_" + t.toLowerCase().replace(/\s+/g,'_');
+    const lbl = document.createElement("label");
+    lbl.className = "chip";
+    lbl.style.cursor = "pointer";
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.id = id;
+    cb.value = t;
+    cb.addEventListener("change", () => lbl.classList.toggle("active", cb.checked));
+    lbl.append(cb, document.createTextNode(" " + t));
+    wrap.append(lbl);
+  });
+}
+
 /* ---------- Suggest form handlers ---------- */
 const drawer = $("#drawer"), toast=$("#toast");
-function openDrawer(){ drawer.classList.add("open"); }
+function openDrawer(){
+  // optional reset each open
+  document.querySelectorAll("#f_tags_wrap input[type=checkbox]").forEach(cb=>{
+    cb.checked = false; cb.parentElement.classList.remove("active");
+  });
+  drawer.classList.add("open");
+}
 function closeDrawer(){ drawer.classList.remove("open"); }
 function showToast(msg){ toast.textContent=msg; toast.style.display='block'; setTimeout(()=>toast.style.display='none', 2600); }
 
 async function submitSuggestion(){
-  // basic validation
-  const a=$("#f_activity").value.trim(), c=$("#f_category").value.trim(), t=$("#f_tags").value.trim();
+  const a=$("#f_activity").value.trim();
+  const c=$("#f_category").value.trim();
+  const picked=[...document.querySelectorAll("#f_tags_wrap input[type=checkbox]:checked")].map(i=>i.value);
+
+  // validation
   $("#e_activity").style.display = a ? 'none' : 'block';
   $("#e_category").style.display = c ? 'none' : 'block';
-  $("#e_tags").style.display     = t ? 'none' : 'block';
-  if(!a || !c || !t) return;
+  $("#e_tags").style.display     = picked.length ? 'none' : 'block';
+  if(!a || !c || !picked.length) return;
+
+  // turn picked tags into semicolon string
+  const t = picked.join("; ");
 
   // URL-encoded POST (no preflight)
   const body = new URLSearchParams({ activity:a, category:c, tags:t }).toString();
@@ -317,7 +354,11 @@ async function submitSuggestion(){
       body
     });
     closeDrawer();
-    $("#f_activity").value = ""; $("#f_category").value = ""; $("#f_tags").value = "";
+    // clear form
+    $("#f_activity").value = ""; $("#f_category").value = "";
+    document.querySelectorAll("#f_tags_wrap input[type=checkbox]").forEach(cb=>{
+      cb.checked = false; cb.parentElement.classList.remove("active");
+    });
     showToast("Thanks! Your idea was submitted for review.");
   }catch(e){
     showToast("Sorry, something went wrong. Try again?");
@@ -343,6 +384,7 @@ $("#outdoors").addEventListener("change", update);
 rebuildChipsFromActivities(false);
 applyHash(readHash());
 update();
+buildTagChecklist();
 loadApprovedFromSheet();
 </script>
 </body>
