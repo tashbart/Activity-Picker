@@ -166,32 +166,42 @@
   <div class="toast" id="toast">Thanks! Your idea was submitted for review.</div>
 
 <script>
+/* ===== CONFIG ===== */
 const SUBMIT_URL     = "https://script.google.com/macros/s/AKfycbxRPq05wzFwqIfAwD7XDwA-k0rkAY-0uiC1vZ9b0f3DhNWx-lAiaydOYywOgBrEEFQ/exec";
 const SHEET_CSV_URL  = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQglaw4_81WylM20K4VT2fFmBARr8CcSjBu23svzco-2z_alzRn1mj9oM_r56M6wecL0gnN9Bd8qXYn/pub?gid=0&single=true&output=csv";
 
+/* Tag options derived from the combinations you listed (deduped, alpha) */
 const TAG_OPTIONS = [
- "Active","Animals","Class","Creative","Cultural","Day trip","Educational","Entertainment",
- "Food & Drink","Indoors","Nightlife","Outdoors","Relaxing","Scenic","Water activity"
-];
+  "Active","Animals","Class","Creative","Cultural","Day trip","Educational","Entertainment",
+  "Food & Drink","Indoors","Nightlife","Outdoors","Relaxing","Scenic","Water activity","Fun"
+].sort();
 
+/* ===== Helpers ===== */
 const row = (name, category, tags, price, plan, time) => ({name, category, tags, price, plan, time});
 const norm = s => (s||"").toString().trim().toLowerCase();
 const $ = sel => document.querySelector(sel);
 const el = (t,c,txt)=>Object.assign(document.createElement(t),{className:c||"",textContent:txt||""});
 
-const activities = [];
-activities.forEach(a => { a._tagStr = ";" + a.tags.map(norm).join(";") + ";"; });
+/* ===== Data ===== */
+const activities = []; // filled from Sheet
 
+/* ===== Chips (dynamic with fallback) ===== */
 let ALL_TAGS = [];
-function toTitleCaseKey(k){ return k.replace(/\b\w/g, c=>c.toUpperCase()); }
+const toTitle = k => k.replace(/\b\w/g, c=>c.toUpperCase());
 
 function rebuildChipsFromActivities(preserve=true){
   const prev = preserve
     ? new Set([...document.querySelectorAll('#tagChips input[type="checkbox"]:checked')].map(i=>i.dataset.tag))
     : new Set();
-  const keys = Array.from(new Set(activities.flatMap(a => a.tags.map(norm)))).sort();
-  ALL_TAGS = keys.map(k => ({ key: k, label: toTitleCaseKey(k) }));
-  const tagWrap = $("#tagChips"); tagWrap.innerHTML = "";
+
+  // Pull tags from loaded data; if none yet, fall back to TAG_OPTIONS
+  let keys = Array.from(new Set(activities.flatMap(a => a.tags.map(norm)))).sort();
+  if (!keys.length) keys = TAG_OPTIONS.map(norm);
+
+  ALL_TAGS = keys.map(k => ({ key: k, label: toTitle(k) }));
+
+  const tagWrap = $("#tagChips");
+  tagWrap.innerHTML = "";
   ALL_TAGS.forEach(({key,label})=>{
     const lab = el("label","chip");
     const inp = document.createElement("input");
@@ -203,14 +213,16 @@ function rebuildChipsFromActivities(preserve=true){
   });
 }
 
+/* ===== Load APPROVED rows from Sheet (CSV) ===== */
 async function loadApprovedFromSheet(){
   try{
     const resp = await fetch(SHEET_CSV_URL, { cache:"no-store" });
-    if(!resp.ok) return;
+    if(!resp.ok){ console.warn("CSV fetch failed:", resp.status); rebuildChipsFromActivities(true); return; }
     const text = await resp.text();
     const rows = parseCSV(text);
     const objs = rowsToObjects(rows);
-    const approved = objs.filter(o => (o['Approved']||'').toLowerCase()==='true');
+
+    const approved = objs.filter(o => (o['Approved'] || '').toLowerCase() === 'true');
     const add = approved.map(o => ({
       name:o['Activity'],
       category:o['Category'],
@@ -219,67 +231,217 @@ async function loadApprovedFromSheet(){
       plan:o['Plan']||'',
       time:o['TimeOfDay']||''
     })).filter(x=>x.name && (x.category==='Seasonal' || x.category==='Permanent'));
-    add.forEach(a=>a._tagStr=";"+a.tags.map(norm).join(";")+";");
-    if(add.length){ activities.push(...add); rebuildChipsFromActivities(true); update(); }
-  }catch(e){ console.warn('CSV load failed', e); }
+
+    add.forEach(a => a._tagStr = ";" + a.tags.map(norm).join(";") + ";");
+    activities.push(...add);
+
+    // If the sheet includes tags beyond the fallback list, they’ll appear too.
+    rebuildChipsFromActivities(true);
+    update();
+  }catch(e){
+    console.warn('CSV load failed', e);
+    rebuildChipsFromActivities(true);
+    update();
+  }
 }
 
+/* Tiny CSV parser */
 function parseCSV(text){
   const rows=[]; let i=0, field="", row=[], inQ=false;
   while(i<text.length){
     const c=text[i];
     if(inQ){
-      if(c=='"'&&text[i+1]=='"'){field+='"';i+=2;continue;}
-      if(c=='"'){inQ=false;i++;continue;}
-      field+=c;i++;continue;
+      if(c=='"'&&text[i+1]=='"'){field+='"'; i+=2; continue;}
+      if(c=='"'){inQ=false; i++; continue;}
+      field+=c; i++; continue;
     }else{
-      if(c=='"'){inQ=true;i++;continue;}
-      if(c==','){row.push(field);field="";i++;continue;}
-      if(c=='\n'){row.push(field);rows.push(row);field="";row=[];i++;continue;}
-      field+=c;i++;continue;
+      if(c=='"'){inQ=true; i++; continue;}
+      if(c==','){row.push(field); field=""; i++; continue;}
+      if(c=='\n'){row.push(field); rows.push(row); field=""; row=[]; i++; continue;}
+      field+=c; i++; continue;
     }
   }
-  if(field.length||row.length){row.push(field);rows.push(row);}
+  if(field.length||row.length){ row.push(field); rows.push(row); }
   return rows;
 }
 function rowsToObjects(rows){
   const [head,...body]=rows; if(!head) return [];
-  return body.map(r=>{const o={}; head.forEach((h,idx)=>o[(h||'').trim()]=(r[idx]||'').trim()); return o;});
+  return body.map(r=>{ const o={}; head.forEach((h,idx)=>o[(h||'').trim()]=(r[idx]||'').trim()); return o; });
 }
 
+/* ===== Controls & matching ===== */
 function getState(){
-  const cat=[...document.querySelectorAll('input[name="cat"]')].find(i=>i.checked).value;
-  const indoors=$("#indoors").checked; const outdoors=$("#outdoors").checked;
-  const free=$("#free").checked; const dollar=$("#dollar").checked;
-  const dollars=$("#dollars").checked; const dollarss=$("#dollarss").checked;
-  const spont=$("#spontaneous").checked; const boka=$("#bookahead").checked;
-  const day=$("#daytime").checked; const night=$("#nighttime").checked; const any=$("#anytime").checked;
-  const q=$("#q").value.trim().toLowerCase();
-  const tags=[...document.querySelectorAll('#tagChips input[type="checkbox"]')].filter(i=>i.checked).map(i=>i.dataset.tag);
-  return {cat, indoors, outdoors, free,dollar,dollars,dollarss,spont,boka,day,night,any,q,tags};
+  const cat = [...document.querySelectorAll('input[name="cat"]')].find(i=>i.checked).value;
+  const indoors=$("#indoors").checked, outdoors=$("#outdoors").checked;
+
+  const free=$("#free").checked, dollar=$("#dollar").checked,
+        dollars=$("#dollars").checked, dollarss=$("#dollarss").checked;
+
+  const spont=$("#spontaneous").checked, boka=$("#bookahead").checked;
+
+  const day=$("#daytime").checked, night=$("#nighttime").checked, any=$("#anytime").checked;
+
+  const q = $("#q").value.trim().toLowerCase();
+  const tags = [...document.querySelectorAll('#tagChips input[type="checkbox"]')]
+    .filter(i=>i.checked).map(i=>i.dataset.tag);
+  return {cat, indoors, outdoors, free, dollar, dollars, dollarss, spont, boka, day, night, any, q, tags};
 }
 
-function matches(a,st){
+function matches(a, st){
   if(st.cat!=="All" && a.category!==st.cat) return false;
   if(st.indoors && !a._tagStr.includes(";indoors;")) return false;
   if(st.outdoors && !a._tagStr.includes(";outdoors;")) return false;
-  if(st.free && a.price!=="Free") return false;
-  if(st.dollar && a.price!=="$") return false;
-  if(st.dollars && a.price!=="$$") return false;
-  if(st.dollarss && a.price!=="$$$") return false;
-  if(st.spont && a.plan!=="Spontaneous") return false;
-  if(st.boka && a.plan!=="Book ahead") return false;
-  if(st.day && a.time!=="Daytime") return false;
-  if(st.night && a.time!=="Nighttime") return false;
-  if(st.any && a.time!=="Anytime") return false;
+
+  // Price
+  if (st.free && a.price!=="Free") return false;
+  if (st.dollar && a.price!=="$") return false;
+  if (st.dollars && a.price!=="$$") return false;
+  if (st.dollarss && a.price!=="$$$") return false;
+
+  // Plan
+  if (st.spont && a.plan!=="Spontaneous") return false;
+  if (st.boka  && a.plan!=="Book ahead")  return false;
+
+  // Time of day
+  if (st.day  && a.time!=="Daytime")  return false;
+  if (st.night&& a.time!=="Nighttime")return false;
+  if (st.any  && a.time!=="Anytime")  return false;
+
+  // AND logic for selected tags
   for(const t of st.tags){ if(!a._tagStr.includes(";"+t+";")) return false; }
-  if(st.q){ const hay=(a.name+" "+a.category+" "+a.tags.join(" ")).toLowerCase(); if(!hay.includes(st.q)) return false; }
+
+  if(st.q){
+    const hay=(a.name+" "+a.category+" "+a.tags.join(" ")).toLowerCase();
+    if(!hay.includes(st.q)) return false;
+  }
   return true;
 }
 
 function render(list){
   const box=$("#results"); box.innerHTML="";
-  if(!list.length){ box.append(el("div","muted","No matches. Try fewer filters.")); $("#count").textContent="0 matches"; return; }
+  if(!list.length){
+    box.append(el("div","muted","No matches. Try fewer filters."));
+    $("#count").textContent="0 matches";
+    return;
+  }
   for(const a of list){
     const card=el("div","card");
-    card.append(el("div","title
+    card.append(el("div","title",a.name));
+    card.append(el("div","meta",a.category));
+    const tags=el("div","tags");
+    a.tags.forEach(t=>tags.append(el("span","tag",t)));
+    if (a.price) tags.append(el("span","tag","Price: "+a.price));
+    if (a.plan)  tags.append(el("span","tag","Plan: "+a.plan));
+    if (a.time)  tags.append(el("span","tag","Time: "+a.time));
+    card.append(tags);
+    box.append(card);
+  }
+  $("#count").textContent=`${list.length} match${list.length===1?"":"es"}`;
+}
+
+/* ===== URL state (keep simple) ===== */
+function writeHash(st){ const o={c:st.cat,i:st.indoors?1:0,o:st.outdoors?1:0,q:st.q,t:st.tags}; location.hash=encodeURIComponent(JSON.stringify(o)); }
+function readHash(){ if(!location.hash) return null; try{return JSON.parse(decodeURIComponent(location.hash.slice(1)));}catch{return null;} }
+function applyHash(o){
+  if(!o) return;
+  [...document.querySelectorAll('input[name="cat"]')].forEach(r=> r.checked=(r.value===o.c));
+  $("#indoors").checked=!!o.i; $("#outdoors").checked=!!o.o; $("#q").value=o.q||"";
+  const want=new Set((o.t||[]).map(norm));
+  document.querySelectorAll('#tagChips input[type="checkbox"]').forEach(cb=>{
+    cb.checked=want.has(cb.dataset.tag); cb.parentElement.classList.toggle("active",cb.checked);
+  });
+}
+
+/* ===== Suggest form (checkbox list from TAG_OPTIONS) ===== */
+function buildTagChecklist() {
+  const wrap = document.getElementById("f_tags_wrap");
+  wrap.innerHTML = "";
+  TAG_OPTIONS.forEach(t => {
+    const id = "tag_" + t.toLowerCase().replace(/\s+/g,'_');
+    const lbl = document.createElement("label");
+    lbl.className = "chip";
+    lbl.style.cursor = "pointer";
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.id = id;
+    cb.value = t;
+    cb.addEventListener("change", () => lbl.classList.toggle("active", cb.checked));
+    lbl.append(cb, document.createTextNode(" " + t));
+    wrap.append(lbl);
+  });
+}
+
+const drawer = $("#drawer"), toast=$("#toast");
+function openDrawer(){
+  document.querySelectorAll("#f_tags_wrap input[type=checkbox]").forEach(cb=>{
+    cb.checked = false; cb.parentElement.classList.remove("active");
+  });
+  drawer.classList.add("open");
+}
+function closeDrawer(){ drawer.classList.remove("open"); }
+function showToast(msg){ toast.textContent=msg; toast.style.display='block'; setTimeout(()=>toast.style.display='none', 2600); }
+
+async function submitSuggestion(){
+  const a=$("#f_activity").value.trim();
+  const c=$("#f_category").value.trim();
+  const picked=[...document.querySelectorAll("#f_tags_wrap input[type=checkbox]:checked")].map(i=>i.value);
+
+  $("#e_activity").style.display = a ? 'none' : 'block';
+  $("#e_category").style.display = c ? 'none' : 'block';
+  $("#e_tags").style.display     = picked.length ? 'none' : 'block';
+  if(!a || !c || !picked.length) return;
+
+  const t = picked.join("; ");
+  const body = new URLSearchParams({ activity:a, category:c, tags:t }).toString();
+  try{
+    await fetch(SUBMIT_URL, { method:'POST', mode:'no-cors',
+      headers:{ 'Content-Type':'application/x-www-form-urlencoded' }, body });
+    closeDrawer();
+    $("#f_activity").value = ""; $("#f_category").value = "";
+    document.querySelectorAll("#f_tags_wrap input[type=checkbox]").forEach(cb=>{
+      cb.checked = false; cb.parentElement.classList.remove("active");
+    });
+    showToast("Thanks! Your idea was submitted for review.");
+  }catch(e){
+    showToast("Sorry, something went wrong. Try again?");
+  }
+}
+
+/* ===== Update & events ===== */
+function update(){ const st=getState(); const list=activities.filter(a=>matches(a,st)); render(list); writeHash(st); }
+$("#randomBtn").addEventListener("click",()=>{
+  const st=getState(); const list=activities.filter(a=>matches(a,st));
+  if(!list.length) return alert("No matches to choose from. Loosen filters?");
+  const pick=list[Math.floor(Math.random()*list.length)];
+  alert("🎉 "+pick.name);
+});
+$("#clearBtn").addEventListener("click",()=>{
+  $("#q").value="";
+  $("#indoors").checked=false; $("#outdoors").checked=false;
+  $("#free").checked=false; $("#dollar").checked=false; $("#dollars").checked=false; $("#dollarss").checked=false;
+  $("#spontaneous").checked=false; $("#bookahead").checked=false;
+  $("#daytime").checked=false; $("#nighttime").checked=false; $("#anytime").checked=false;
+  document.querySelector('input[name="cat"][value="All"]').checked=true;
+  document.querySelectorAll('#tagChips input[type="checkbox"]').forEach(cb=>{ cb.checked=false; cb.parentElement.classList.remove("active"); });
+  update();
+});
+$("#openSuggest").addEventListener("click", openDrawer);
+$("#closeDrawer").addEventListener("click", closeDrawer);
+$("#xClose").addEventListener("click", closeDrawer);
+$("#cancelSuggest").addEventListener("click", closeDrawer);
+$("#submitSuggest").addEventListener("click", submitSuggestion);
+$("#q").addEventListener("input", update);
+$("#shareLink").addEventListener("click", e=>{ e.preventDefault(); navigator.clipboard.writeText(location.href).then(()=> alert("Link copied!")); });
+document.querySelectorAll('input[name="cat"]').forEach(r=> r.addEventListener("change", update));
+["indoors","outdoors","free","dollar","dollars","dollarss","spontaneous","bookahead","daytime","nighttime","anytime"]
+  .forEach(id => { const x = $("#"+id); if(x) x.addEventListener("change", update); });
+
+/* ===== Init ===== */
+rebuildChipsFromActivities(false);   // show fallback chips immediately
+buildTagChecklist();                 // build suggest-drawer checklist
+applyHash(readHash());               // apply saved state (if any)
+update();                            // initial render (will be empty until CSV loads)
+loadApprovedFromSheet();             // load live data
+</script>
+</body>
+</html>
