@@ -74,7 +74,7 @@
       <div class="row toolbar">
         <div class="pill" role="radiogroup" aria-label="Category">
           <label><input type="radio" name="cat" value="All" checked> All</label>
-          <label><input type="radio" name="cat" value="Seasonal"> Seasonal</label>
+          <label><input type="radio" name="cat" value="Seasonal"> Seasonal/Limited Time</label>
           <label><input type="radio" name="cat" value="Permanent"> Permanent</label>
         </div>
 
@@ -142,7 +142,8 @@
         <div class="label">Category *</div>
         <select class="select" id="f_category">
           <option value="">Select…</option>
-          <option>Seasonal</option>
+          <option value="Seasonal">Seasonal/Limited Time</option>
+<option value="Permanent">Permanent</option>
           <option>Permanent</option>
         </select>
         <div class="err" id="e_category">Please choose a category.</div>
