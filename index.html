@@ -250,50 +250,81 @@ function rebuildChipsFromActivities(preserve=true){
 }
 
 /* ===== Load APPROVED rows from Sheet (CSV) ===== */
+<script>
 async function loadApprovedFromSheet(){
   try{
-    // Add a cache-buster so Google doesn't serve an old CSV
     const url = SHEET_CSV_URL + (SHEET_CSV_URL.includes('?') ? '&' : '?') + 'cb=' + Date.now();
     const resp = await fetch(url, { cache: "no-store" });
     if(!resp.ok){
       console.warn("CSV fetch failed:", resp.status);
-      rebuildChipsFromActivities(true);
-      update();
-      return;
+      rebuildChipsFromActivities(true); update(); return;
     }
 
     const text = await resp.text();
     const rows = parseCSV(text);
-    const objs = rowsToObjects(rows);
+    if (!rows.length) { console.warn("CSV has no rows"); rebuildChipsFromActivities(true); update(); return; }
 
-    // Be tolerant: TRUE/true/1/yes (any case) counts as approved
-    const isApproved = v => /^true|^1|^yes$/i.test((v||'').toString().trim());
-    const approved = objs.filter(o => isApproved(o['Approved']));
+    // Build a normalized header map: lowercase, trimmed, BOM-stripped
+    const rawHead = rows[0].map(h => (h||"").replace(/^\uFEFF/,'').trim());
+    const headMap = {};
+    rawHead.forEach((h, i) => headMap[h.toLowerCase()] = i);
 
-    const add = approved.map(o => ({
-      name: o['Activity'],
-      category: o['Category'],
-      tags: (o['Tags'] || '').split(';').map(t => t.trim()).filter(Boolean),
-      price: o['PriceBin'] || '',
-      plan:  o['Plan']     || '',
-      time:  o['TimeOfDay']|| ''
-    })).filter(x => x.name && (x.category === 'Seasonal' || x.category === 'Permanent'));
+    const get = (r, name) => {
+      const idx = headMap[name.toLowerCase()];
+      return (idx == null) ? "" : (r[idx] || "").trim();
+    };
 
-    add.forEach(a => a._tagStr = ";" + a.tags.map(norm).join(";") + ";");
+    // Convert rows -> objects using the normalized map
+    const body = rows.slice(1).filter(r => r.some(x => (x||"").trim().length));
+    const objs = body.map(r => ({
+      activity : get(r, "Activity"),
+      category : get(r, "Category"),
+      tags     : get(r, "Tags"),
+      approved : get(r, "Approved"),
+      price    : get(r, "PriceBin"),
+      plan     : get(r, "Plan"),
+      time     : get(r, "TimeOfDay"),
+    }));
+
+    // Approval test: tolerant, and if there's NO Approved column, default to true
+    const hasApprovedCol = "approved" in headMap;
+    const isApproved = v => /^true|^1|^yes$/i.test((v||"").toString().trim());
+    const approved = objs.filter(o => hasApprovedCol ? isApproved(o.approved) : true);
+
+    // Normalize + push into activities
+    const add = approved
+      .map(o => ({
+        name: o.activity,
+        category: o.category === "Seasonal/Limited Time" ? "Seasonal" : o.category,
+        tags: (o.tags || "").split(";").map(t => t.trim()).filter(Boolean),
+        price: o.price || "",
+        plan:  o.plan  || "",
+        time:  o.time  || ""
+      }))
+      .filter(x => x.name && (x.category === "Seasonal" || x.category === "Permanent"));
+
+    add.forEach(a => a._tagStr = ";" + a.tags.map(s => s.toLowerCase()).join(";") + ";");
 
     activities.length = 0;
     activities.push(...add);
 
-    console.log(`CSV rows: ${objs.length}, approved: ${approved.length}, loaded: ${add.length}`);
+    console.log({
+      csv_rows: rows.length - 1,
+      hasApprovedCol,
+      approved_rows: approved.length,
+      loaded: activities.length,
+      headers_seen: rawHead
+    });
 
     rebuildChipsFromActivities(true);
     update();
   }catch(e){
-    console.warn('CSV load failed', e);
+    console.warn("CSV load failed", e);
     rebuildChipsFromActivities(true);
     update();
   }
 }
+</script>
 
 
 /* Tiny CSV parser */
