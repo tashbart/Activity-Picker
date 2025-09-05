@@ -6,10 +6,8 @@
 <title>Sydney Activity Picker</title>
 <meta name="description" content="Pick activities by tags, price, planning, and time of day.">
 <style>
-  :root{
-    --bg:#0b0c10; --card:#111218; --ink:#e6e7ee; --dim:#aeb1c6; --accent:#7bdcbe;
-    --chip:#1b1e29; --chipOn:#133229; --muted:#7f86a1; --border:#242636; --danger:#e06b6b;
-  }
+  :root{ --bg:#0b0c10; --card:#111218; --ink:#e6e7ee; --dim:#aeb1c6; --accent:#7bdcbe;
+         --chip:#1b1e29; --chipOn:#133229; --muted:#7f86a1; --border:#242636; --danger:#e06b6b; }
   html,body{height:100%;}
   body{margin:0; font-family:Inter,system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif; background:var(--bg); color:var(--ink);}
   .wrap{max-width:1100px; margin:auto; padding:24px;}
@@ -55,16 +53,16 @@
   .drawer{position:fixed; inset:0; display:none; align-items:stretch; z-index:50}
   .drawer.open{display:flex}
   .shade{flex:1; background:rgba(0,0,0,.5)}
-  .panel2{width:min(520px, 92vw); background:#0e1118; border-left:1px solid var(--border); padding:18px; overflow:auto}
+  .panel2{width:min(520px,92vw); background:#0e1118; border-left:1px solid var(--border); padding:18px; overflow:auto}
   .field{margin:10px 0}
   .label{font-size:12px; color:var(--muted); margin-bottom:6px}
-  .input, .select{width:100%; background:#0b0f15; border:1px solid var(--border); color:var(--ink); border-radius:10px; padding:10px 12px}
+  .input,.select{width:100%; background:#0b0f15; border:1px solid var(--border); color:var(--ink); border-radius:10px; padding:10px 12px}
   .note{font-size:12px; color:var(--muted); margin-top:6px}
   .row2{display:flex; gap:8px; flex-wrap:wrap}
   .err{color:var(--danger); font-size:12px; display:none}
   .toast{position:fixed; bottom:16px; left:50%; transform:translateX(-50%); background:#14241c; border:1px solid #194d3d;
          color:#b6f0d8; padding:10px 14px; border-radius:10px; display:none; z-index:60}
-  .radiochip{display:inline-flex; align-items:center; gap:8px; background:#0b0f15; border:1px solid var(--border); color:var(--ink); padding:8px 12px; border-radius:999px; cursor:pointer}
+  .radiochip{display:inline-flex; align-items:center; gap:8px; background:#0b0f15; border:1px solid var(--border); color:#fff; padding:8px 12px; border-radius:999px; cursor:pointer}
   .radiochip input{transform:scale(1.05)}
 </style>
 </head>
@@ -151,7 +149,6 @@
         <div class="err" id="e_category">Please choose a category.</div>
       </div>
 
-      <!-- Tags checklist built by JS -->
       <div class="field">
         <div class="label">Tags *</div>
         <div id="f_tags_wrap" class="row2" style="gap:10px"></div>
@@ -159,7 +156,6 @@
         <div class="err" id="e_tags">Please choose at least one tag.</div>
       </div>
 
-      <!-- New: Price (required) -->
       <div class="field">
         <div class="label">Price *</div>
         <div class="row2" id="f_price">
@@ -171,7 +167,6 @@
         <div class="err" id="e_price">Please select a price.</div>
       </div>
 
-      <!-- New: Plan (required) -->
       <div class="field">
         <div class="label">Plan *</div>
         <div class="row2" id="f_plan">
@@ -181,7 +176,6 @@
         <div class="err" id="e_plan">Please choose one.</div>
       </div>
 
-      <!-- New: Time of day (required) -->
       <div class="field">
         <div class="label">Time of day *</div>
         <div class="row2" id="f_time">
@@ -213,7 +207,6 @@ const TAG_OPTIONS = [
 ].sort();
 
 /* ===== Helpers ===== */
-const row = (name, category, tags, price, plan, time) => ({name, category, tags, price, plan, time});
 const norm = s => (s||"").toString().trim().toLowerCase();
 const $ = sel => document.querySelector(sel);
 const el = (t,c,txt)=>Object.assign(document.createElement(t),{className:c||"",textContent:txt||""});
@@ -224,23 +217,18 @@ const activities = []; // filled from Sheet
 /* ===== Chips (dynamic with fallback) ===== */
 let ALL_TAGS = [];
 const toTitle = k => k.replace(/\b\w/g, c=>c.toUpperCase());
-
 function rebuildChipsFromActivities(preserve=true){
   const prev = preserve
     ? new Set([...document.querySelectorAll('#tagChips input[type="checkbox"]:checked')].map(i=>i.dataset.tag))
     : new Set();
 
-  // Pull tags from loaded data; if none yet, fall back to TAG_OPTIONS
   let keys = Array.from(new Set(activities.flatMap(a => a.tags.map(norm)))).sort();
-  if (!keys.length) keys = TAG_OPTIONS.map(norm);
-
+  if (!keys.length) keys = ["active","animals","class","creative","cultural","day trip","educational","entertainment","food & drink","indoors","nightlife","outdoors","relaxing","scenic","water activity","fun"];
   ALL_TAGS = keys.map(k => ({ key: k, label: toTitle(k) }));
 
-  const tagWrap = $("#tagChips");
-  tagWrap.innerHTML = "";
+  const tagWrap = $("#tagChips"); tagWrap.innerHTML = "";
   ALL_TAGS.forEach(({key,label})=>{
-    const lab = el("label","chip");
-    const inp = document.createElement("input");
+    const lab = el("label","chip"); const inp = document.createElement("input");
     inp.type="checkbox"; inp.dataset.tag=key; inp.value=key;
     if (prev.has(key)) { inp.checked=true; lab.classList.add("active"); }
     inp.addEventListener("change", ()=>{ lab.classList.toggle("active", inp.checked); update(); });
@@ -250,82 +238,55 @@ function rebuildChipsFromActivities(preserve=true){
 }
 
 /* ===== Load APPROVED rows from Sheet (CSV) ===== */
-<script>
 async function loadApprovedFromSheet(){
   try{
     const url = SHEET_CSV_URL + (SHEET_CSV_URL.includes('?') ? '&' : '?') + 'cb=' + Date.now();
     const resp = await fetch(url, { cache: "no-store" });
-    if(!resp.ok){
-      console.warn("CSV fetch failed:", resp.status);
-      rebuildChipsFromActivities(true); update(); return;
-    }
+    if(!resp.ok){ console.warn("CSV fetch failed:", resp.status); rebuildChipsFromActivities(true); update(); return; }
 
     const text = await resp.text();
     const rows = parseCSV(text);
     if (!rows.length) { console.warn("CSV has no rows"); rebuildChipsFromActivities(true); update(); return; }
 
-    // Build a normalized header map: lowercase, trimmed, BOM-stripped
+    // Normalized header map (lowercased, trimmed, BOM-stripped)
     const rawHead = rows[0].map(h => (h||"").replace(/^\uFEFF/,'').trim());
-    const headMap = {};
-    rawHead.forEach((h, i) => headMap[h.toLowerCase()] = i);
+    const headMap = {}; rawHead.forEach((h,i)=> headMap[h.toLowerCase()] = i);
+    const get = (r, name) => { const idx = headMap[name.toLowerCase()]; return (idx==null) ? "" : (r[idx]||"").trim(); };
 
-    const get = (r, name) => {
-      const idx = headMap[name.toLowerCase()];
-      return (idx == null) ? "" : (r[idx] || "").trim();
-    };
-
-    // Convert rows -> objects using the normalized map
     const body = rows.slice(1).filter(r => r.some(x => (x||"").trim().length));
     const objs = body.map(r => ({
-      activity : get(r, "Activity"),
-      category : get(r, "Category"),
-      tags     : get(r, "Tags"),
-      approved : get(r, "Approved"),
-      price    : get(r, "PriceBin"),
-      plan     : get(r, "Plan"),
-      time     : get(r, "TimeOfDay"),
+      activity : get(r,"activity"),
+      category : get(r,"category"),
+      tags     : get(r,"tags"),
+      approved : get(r,"approved"),
+      price    : get(r,"pricebin"),
+      plan     : get(r,"plan"),
+      time     : get(r,"timeofday"),
     }));
 
-    // Approval test: tolerant, and if there's NO Approved column, default to true
     const hasApprovedCol = "approved" in headMap;
     const isApproved = v => /^true|^1|^yes$/i.test((v||"").toString().trim());
     const approved = objs.filter(o => hasApprovedCol ? isApproved(o.approved) : true);
 
-    // Normalize + push into activities
-    const add = approved
-      .map(o => ({
-        name: o.activity,
-        category: o.category === "Seasonal/Limited Time" ? "Seasonal" : o.category,
-        tags: (o.tags || "").split(";").map(t => t.trim()).filter(Boolean),
-        price: o.price || "",
-        plan:  o.plan  || "",
-        time:  o.time  || ""
-      }))
-      .filter(x => x.name && (x.category === "Seasonal" || x.category === "Permanent"));
+    const add = approved.map(o => ({
+      name: o.activity,
+      category: o.category === "Seasonal/Limited Time" ? "Seasonal" : o.category,
+      tags: (o.tags||"").split(";").map(t=>t.trim()).filter(Boolean),
+      price: o.price || "",
+      plan : o.plan  || "",
+      time : o.time  || ""
+    })).filter(x => x.name && (x.category === "Seasonal" || x.category === "Permanent"));
 
-    add.forEach(a => a._tagStr = ";" + a.tags.map(s => s.toLowerCase()).join(";") + ";");
+    add.forEach(a => a._tagStr = ";" + a.tags.map(norm).join(";") + ";");
 
-    activities.length = 0;
-    activities.push(...add);
-
-    console.log({
-      csv_rows: rows.length - 1,
-      hasApprovedCol,
-      approved_rows: approved.length,
-      loaded: activities.length,
-      headers_seen: rawHead
-    });
-
-    rebuildChipsFromActivities(true);
-    update();
+    activities.length = 0; activities.push(...add);
+    console.log({headers_seen:rawHead, loaded:activities.length});
+    rebuildChipsFromActivities(true); update();
   }catch(e){
-    console.warn("CSV load failed", e);
-    rebuildChipsFromActivities(true);
-    update();
+    console.warn('CSV load failed', e);
+    rebuildChipsFromActivities(true); update();
   }
 }
-</script>
-
 
 /* Tiny CSV parser */
 function parseCSV(text){
@@ -346,26 +307,16 @@ function parseCSV(text){
   if(field.length||row.length){ row.push(field); rows.push(row); }
   return rows;
 }
-function rowsToObjects(rows){
-  const [head,...body]=rows; if(!head) return [];
-  return body.map(r=>{ const o={}; head.forEach((h,idx)=>o[(h||'').trim()]=(r[idx]||'').trim()); return o; });
-}
 
 /* ===== Controls & matching ===== */
 function getState(){
   const cat = [...document.querySelectorAll('input[name="cat"]')].find(i=>i.checked).value;
   const indoors=$("#indoors").checked, outdoors=$("#outdoors").checked;
-
-  const free=$("#free").checked, dollar=$("#dollar").checked,
-        dollars=$("#dollars").checked, dollarss=$("#dollarss").checked;
-
+  const free=$("#free").checked, dollar=$("#dollar").checked, dollars=$("#dollars").checked, dollarss=$("#dollarss").checked;
   const spont=$("#spontaneous").checked, boka=$("#bookahead").checked;
-
   const day=$("#daytime").checked, night=$("#nighttime").checked, any=$("#anytime").checked;
-
   const q = $("#q").value.trim().toLowerCase();
-  const tags = [...document.querySelectorAll('#tagChips input[type="checkbox"]')]
-    .filter(i=>i.checked).map(i=>i.dataset.tag);
+  const tags = [...document.querySelectorAll('#tagChips input[type="checkbox"]')].filter(i=>i.checked).map(i=>i.dataset.tag);
   return {cat, indoors, outdoors, free, dollar, dollars, dollarss, spont, boka, day, night, any, q, tags};
 }
 
@@ -373,35 +324,23 @@ function matches(a, st){
   if(st.cat!=="All" && a.category!==st.cat) return false;
   if(st.indoors && !a._tagStr.includes(";indoors;")) return false;
   if(st.outdoors && !a._tagStr.includes(";outdoors;")) return false;
-
   if (st.free && a.price!=="Free") return false;
   if (st.dollar && a.price!=="$") return false;
   if (st.dollars && a.price!=="$$") return false;
   if (st.dollarss && a.price!=="$$$") return false;
-
   if (st.spont && a.plan!=="Spontaneous") return false;
   if (st.boka  && a.plan!=="Book ahead")  return false;
-
   if (st.day  && a.time!=="Daytime")  return false;
   if (st.night&& a.time!=="Nighttime")return false;
   if (st.any  && a.time!=="Anytime")  return false;
-
   for(const t of st.tags){ if(!a._tagStr.includes(";"+t+";")) return false; }
-
-  if(st.q){
-    const hay=(a.name+" "+a.category+" "+a.tags.join(" ")).toLowerCase();
-    if(!hay.includes(st.q)) return false;
-  }
+  if(st.q){ const hay=(a.name+" "+a.category+" "+a.tags.join(" ")).toLowerCase(); if(!hay.includes(st.q)) return false; }
   return true;
 }
 
 function render(list){
   const box=$("#results"); box.innerHTML="";
-  if(!list.length){
-    box.append(el("div","muted","No matches. Try fewer filters."));
-    $("#count").textContent="0 matches";
-    return;
-  }
+  if(!list.length){ box.append(el("div","muted","No matches. Try fewer filters.")); $("#count").textContent="0 matches"; return; }
   for(const a of list){
     const card=el("div","card");
     card.append(el("div","title",a.name));
@@ -430,19 +369,13 @@ function applyHash(o){
   });
 }
 
-/* ===== Suggest form (checkbox list from TAG_OPTIONS) ===== */
+/* ===== Suggest form ===== */
 function buildTagChecklist() {
-  const wrap = document.getElementById("f_tags_wrap");
-  wrap.innerHTML = "";
+  const wrap = document.getElementById("f_tags_wrap"); wrap.innerHTML = "";
   TAG_OPTIONS.forEach(t => {
     const id = "tag_" + t.toLowerCase().replace(/\s+/g,'_');
-    const lbl = document.createElement("label");
-    lbl.className = "chip";
-    lbl.style.cursor = "pointer";
-    const cb = document.createElement("input");
-    cb.type = "checkbox";
-    cb.id = id;
-    cb.value = t;
+    const lbl = document.createElement("label"); lbl.className = "chip"; lbl.style.cursor = "pointer";
+    const cb = document.createElement("input"); cb.type = "checkbox"; cb.id = id; cb.value = t;
     cb.addEventListener("change", () => lbl.classList.toggle("active", cb.checked));
     lbl.append(cb, document.createTextNode(" " + t));
     wrap.append(lbl);
@@ -451,32 +384,21 @@ function buildTagChecklist() {
 
 const drawer = $("#drawer"), toast=$("#toast");
 function openDrawer(){
-  document.querySelectorAll("#f_tags_wrap input[type=checkbox]").forEach(cb=>{
-    cb.checked = false; cb.parentElement.classList.remove("active");
-  });
-  // Reset radios
+  document.querySelectorAll("#f_tags_wrap input[type=checkbox]").forEach(cb=>{ cb.checked = false; cb.parentElement.classList.remove("active"); });
   document.querySelectorAll('input[name="price"], input[name="plan"], input[name="time"]').forEach(r=> r.checked=false);
   drawer.classList.add("open");
 }
 function closeDrawer(){ drawer.classList.remove("open"); }
 function showToast(msg){ toast.textContent=msg; toast.style.display='block'; setTimeout(()=>toast.style.display='none', 2600); }
-
-function getSelected(name){
-  const r = document.querySelector(`input[name="${name}"]:checked`);
-  return r ? r.value : "";
-}
+function getSelected(name){ const r=document.querySelector(`input[name="${name}"]:checked`); return r ? r.value : ""; }
 
 async function submitSuggestion(){
   const a=$("#f_activity").value.trim();
   let c=$("#f_category").value.trim();
-  // normalize if someone changes display text in future
   if (/^seasonal\/?limited time$/i.test(c)) c = "Seasonal";
   const picked=[...document.querySelectorAll("#f_tags_wrap input[type=checkbox]:checked")].map(i=>i.value);
-  const price = getSelected("price");
-  const plan  = getSelected("plan");
-  const time  = getSelected("time");
+  const price=getSelected("price"), plan=getSelected("plan"), time=getSelected("time");
 
-  // validation
   $("#e_activity").style.display = a ? 'none' : 'block';
   $("#e_category").style.display = c ? 'none' : 'block';
   $("#e_tags").style.display     = picked.length ? 'none' : 'block';
@@ -485,55 +407,24 @@ async function submitSuggestion(){
   $("#e_time").style.display     = time  ? 'none' : 'block';
   if(!a || !c || !picked.length || !price || !plan || !time) return;
 
-  const t = picked.join("; ");
-  // Send the extra fields too (priceBin/plan/timeOfDay)
   const body = new URLSearchParams({
-    activity:a,
-    category:c,
-    tags:t,
-    priceBin:price,
-    plan:plan,
-    timeOfDay:time
+    activity:a, category:c, tags:picked.join("; "), priceBin:price, plan, timeOfDay:time
   }).toString();
 
   try{
-    await fetch(SUBMIT_URL, {
-      method:'POST',
-      mode:'no-cors',
-      headers:{ 'Content-Type':'application/x-www-form-urlencoded' },
-      body
-    });
+    await fetch(SUBMIT_URL, { method:'POST', mode:'no-cors', headers:{ 'Content-Type':'application/x-www-form-urlencoded' }, body });
     closeDrawer();
-    // clear form
     $("#f_activity").value = ""; $("#f_category").value = "";
-    document.querySelectorAll("#f_tags_wrap input[type=checkbox]").forEach(cb=>{
-      cb.checked = false; cb.parentElement.classList.remove("active");
-    });
+    document.querySelectorAll("#f_tags_wrap input[type=checkbox]").forEach(cb=>{ cb.checked=false; cb.parentElement.classList.remove("active"); });
     document.querySelectorAll('input[name="price"], input[name="plan"], input[name="time"]').forEach(r=> r.checked=false);
     showToast("Thanks! Your idea was submitted for review.");
-  }catch(e){
-    showToast("Sorry, something went wrong. Try again?");
-  }
+  }catch(e){ showToast("Sorry, something went wrong. Try again?"); }
 }
 
 /* ===== Update & events ===== */
 function update(){ const st=getState(); const list=activities.filter(a=>matches(a,st)); render(list); writeHash(st); }
-$("#randomBtn").addEventListener("click",()=>{
-  const st=getState(); const list=activities.filter(a=>matches(a,st));
-  if(!list.length) return alert("No matches to choose from. Loosen filters?");
-  const pick=list[Math.floor(Math.random()*list.length)];
-  alert("🎉 "+pick.name);
-});
-$("#clearBtn").addEventListener("click",()=>{
-  $("#q").value="";
-  $("#indoors").checked=false; $("#outdoors").checked=false;
-  $("#free").checked=false; $("#dollar").checked=false; $("#dollars").checked=false; $("#dollarss").checked=false;
-  $("#spontaneous").checked=false; $("#bookahead").checked=false;
-  $("#daytime").checked=false; $("#nighttime").checked=false; $("#anytime").checked=false;
-  document.querySelector('input[name="cat"][value="All"]').checked=true;
-  document.querySelectorAll('#tagChips input[type="checkbox"]').forEach(cb=>{ cb.checked=false; cb.parentElement.classList.remove("active"); });
-  update();
-});
+$("#randomBtn").addEventListener("click",()=>{ const st=getState(); const list=activities.filter(a=>matches(a,st)); if(!list.length) return alert("No matches to choose from. Loosen filters?"); const pick=list[Math.floor(Math.random()*list.length)]; alert("🎉 "+pick.name); });
+$("#clearBtn").addEventListener("click",()=>{ $("#q").value=""; ["indoors","outdoors","free","dollar","dollars","dollarss","spontaneous","bookahead","daytime","nighttime","anytime"].forEach(id=>{$("#"+id).checked=false;}); document.querySelector('input[name="cat"][value="All"]').checked=true; document.querySelectorAll('#tagChips input[type="checkbox"]').forEach(cb=>{ cb.checked=false; cb.parentElement.classList.remove("active"); }); update(); });
 $("#openSuggest").addEventListener("click", openDrawer);
 $("#closeDrawer").addEventListener("click", closeDrawer);
 $("#xClose").addEventListener("click", closeDrawer);
@@ -542,15 +433,14 @@ $("#submitSuggest").addEventListener("click", submitSuggestion);
 $("#q").addEventListener("input", update);
 $("#shareLink").addEventListener("click", e=>{ e.preventDefault(); navigator.clipboard.writeText(location.href).then(()=> alert("Link copied!")); });
 document.querySelectorAll('input[name="cat"]').forEach(r=> r.addEventListener("change", update));
-["indoors","outdoors","free","dollar","dollars","dollarss","spontaneous","bookahead","daytime","nighttime","anytime"]
-  .forEach(id => { const x = $("#"+id); if(x) x.addEventListener("change", update); });
+["indoors","outdoors","free","dollar","dollars","dollarss","spontaneous","bookahead","daytime","nighttime","anytime"].forEach(id => { const x = $("#"+id); if(x) x.addEventListener("change", update); });
 
 /* ===== Init ===== */
-rebuildChipsFromActivities(false);   // show chips immediately (fallback until CSV loads)
-buildTagChecklist();                 // build suggest-drawer checklist
-applyHash(readHash());               // apply saved state (if any)
-update();                            // initial render
-loadApprovedFromSheet();             // load live data
+rebuildChipsFromActivities(false);
+buildTagChecklist();
+applyHash(readHash());
+update();
+loadApprovedFromSheet();
 </script>
 </body>
 </html>
