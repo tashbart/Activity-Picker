@@ -51,6 +51,7 @@
     .chip{padding:10px 12px; margin:2px 0}
     .results{grid-template-columns:repeat(auto-fill,minmax(200px,1fr))}
   }
+  /* Drawer */
   .drawer{position:fixed; inset:0; display:none; align-items:stretch; z-index:50}
   .drawer.open{display:flex}
   .shade{flex:1; background:rgba(0,0,0,.5)}
@@ -63,6 +64,8 @@
   .err{color:var(--danger); font-size:12px; display:none}
   .toast{position:fixed; bottom:16px; left:50%; transform:translateX(-50%); background:#14241c; border:1px solid #194d3d;
          color:#b6f0d8; padding:10px 14px; border-radius:10px; display:none; z-index:60}
+  .radiochip{display:inline-flex; align-items:center; gap:8px; background:#0b0f15; border:1px solid var(--border); color:var(--ink); padding:8px 12px; border-radius:999px; cursor:pointer}
+  .radiochip input{transform:scale(1.05)}
 </style>
 </head>
 <body>
@@ -129,7 +132,7 @@
     <div class="panel2">
       <div class="row2" style="justify-content:space-between; align-items:center">
         <h3 style="margin:0">Suggest an activity</h3>
-        <button class="btn ghost" id="xClose">Close</button>
+        <button class="btn secondary" id="xClose">Close</button>
       </div>
 
       <div class="field">
@@ -143,8 +146,7 @@
         <select class="select" id="f_category">
           <option value="">Select…</option>
           <option value="Seasonal">Seasonal/Limited Time</option>
-<option value="Permanent">Permanent</option>
-          <option>Permanent</option>
+          <option value="Permanent">Permanent</option>
         </select>
         <div class="err" id="e_category">Please choose a category.</div>
       </div>
@@ -155,6 +157,39 @@
         <div id="f_tags_wrap" class="row2" style="gap:10px"></div>
         <div class="note">Pick as many as you like.</div>
         <div class="err" id="e_tags">Please choose at least one tag.</div>
+      </div>
+
+      <!-- New: Price (required) -->
+      <div class="field">
+        <div class="label">Price *</div>
+        <div class="row2" id="f_price">
+          <label class="radiochip"><input type="radio" name="price" value="Free"> Free</label>
+          <label class="radiochip"><input type="radio" name="price" value="$"> $</label>
+          <label class="radiochip"><input type="radio" name="price" value="$$"> $$</label>
+          <label class="radiochip"><input type="radio" name="price" value="$$$"> $$$</label>
+        </div>
+        <div class="err" id="e_price">Please select a price.</div>
+      </div>
+
+      <!-- New: Plan (required) -->
+      <div class="field">
+        <div class="label">Plan *</div>
+        <div class="row2" id="f_plan">
+          <label class="radiochip"><input type="radio" name="plan" value="Spontaneous"> Spontaneous</label>
+          <label class="radiochip"><input type="radio" name="plan" value="Book ahead"> Book ahead</label>
+        </div>
+        <div class="err" id="e_plan">Please choose one.</div>
+      </div>
+
+      <!-- New: Time of day (required) -->
+      <div class="field">
+        <div class="label">Time of day *</div>
+        <div class="row2" id="f_time">
+          <label class="radiochip"><input type="radio" name="time" value="Daytime"> Daytime</label>
+          <label class="radiochip"><input type="radio" name="time" value="Nighttime"> Nighttime</label>
+          <label class="radiochip"><input type="radio" name="time" value="Anytime"> Anytime</label>
+        </div>
+        <div class="err" id="e_time">Please choose one.</div>
       </div>
 
       <div class="row2" style="margin-top:12px">
@@ -171,7 +206,7 @@
 const SUBMIT_URL     = "https://script.google.com/macros/s/AKfycbxRPq05wzFwqIfAwD7XDwA-k0rkAY-0uiC1vZ9b0f3DhNWx-lAiaydOYywOgBrEEFQ/exec";
 const SHEET_CSV_URL  = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQglaw4_81WylM20K4VT2fFmBARr8CcSjBu23svzco-2z_alzRn1mj9oM_r56M6wecL0gnN9Bd8qXYn/pub?gid=0&single=true&output=csv";
 
-/* Tag options derived from the combinations you listed (deduped, alpha) */
+/* Tag options (alphabetical) */
 const TAG_OPTIONS = [
   "Active","Animals","Class","Creative","Cultural","Day trip","Educational","Entertainment",
   "Food & Drink","Indoors","Nightlife","Outdoors","Relaxing","Scenic","Water activity","Fun"
@@ -236,7 +271,6 @@ async function loadApprovedFromSheet(){
     add.forEach(a => a._tagStr = ";" + a.tags.map(norm).join(";") + ";");
     activities.push(...add);
 
-    // If the sheet includes tags beyond the fallback list, they’ll appear too.
     rebuildChipsFromActivities(true);
     update();
   }catch(e){
@@ -293,22 +327,18 @@ function matches(a, st){
   if(st.indoors && !a._tagStr.includes(";indoors;")) return false;
   if(st.outdoors && !a._tagStr.includes(";outdoors;")) return false;
 
-  // Price
   if (st.free && a.price!=="Free") return false;
   if (st.dollar && a.price!=="$") return false;
   if (st.dollars && a.price!=="$$") return false;
   if (st.dollarss && a.price!=="$$$") return false;
 
-  // Plan
   if (st.spont && a.plan!=="Spontaneous") return false;
   if (st.boka  && a.plan!=="Book ahead")  return false;
 
-  // Time of day
   if (st.day  && a.time!=="Daytime")  return false;
   if (st.night&& a.time!=="Nighttime")return false;
   if (st.any  && a.time!=="Anytime")  return false;
 
-  // AND logic for selected tags
   for(const t of st.tags){ if(!a._tagStr.includes(";"+t+";")) return false; }
 
   if(st.q){
@@ -340,7 +370,7 @@ function render(list){
   $("#count").textContent=`${list.length} match${list.length===1?"":"es"}`;
 }
 
-/* ===== URL state (keep simple) ===== */
+/* ===== URL state ===== */
 function writeHash(st){ const o={c:st.cat,i:st.indoors?1:0,o:st.outdoors?1:0,q:st.q,t:st.tags}; location.hash=encodeURIComponent(JSON.stringify(o)); }
 function readHash(){ if(!location.hash) return null; try{return JSON.parse(decodeURIComponent(location.hash.slice(1)));}catch{return null;} }
 function applyHash(o){
@@ -377,31 +407,62 @@ function openDrawer(){
   document.querySelectorAll("#f_tags_wrap input[type=checkbox]").forEach(cb=>{
     cb.checked = false; cb.parentElement.classList.remove("active");
   });
+  // Reset radios
+  document.querySelectorAll('input[name="price"], input[name="plan"], input[name="time"]').forEach(r=> r.checked=false);
   drawer.classList.add("open");
 }
 function closeDrawer(){ drawer.classList.remove("open"); }
 function showToast(msg){ toast.textContent=msg; toast.style.display='block'; setTimeout(()=>toast.style.display='none', 2600); }
 
+function getSelected(name){
+  const r = document.querySelector(`input[name="${name}"]:checked`);
+  return r ? r.value : "";
+}
+
 async function submitSuggestion(){
   const a=$("#f_activity").value.trim();
-  const c=$("#f_category").value.trim();
+  let c=$("#f_category").value.trim();
+  // normalize if someone changes display text in future
+  if (/^seasonal\/?limited time$/i.test(c)) c = "Seasonal";
   const picked=[...document.querySelectorAll("#f_tags_wrap input[type=checkbox]:checked")].map(i=>i.value);
+  const price = getSelected("price");
+  const plan  = getSelected("plan");
+  const time  = getSelected("time");
 
+  // validation
   $("#e_activity").style.display = a ? 'none' : 'block';
   $("#e_category").style.display = c ? 'none' : 'block';
   $("#e_tags").style.display     = picked.length ? 'none' : 'block';
-  if(!a || !c || !picked.length) return;
+  $("#e_price").style.display    = price ? 'none' : 'block';
+  $("#e_plan").style.display     = plan  ? 'none' : 'block';
+  $("#e_time").style.display     = time  ? 'none' : 'block';
+  if(!a || !c || !picked.length || !price || !plan || !time) return;
 
   const t = picked.join("; ");
-  const body = new URLSearchParams({ activity:a, category:c, tags:t }).toString();
+  // Send the extra fields too (priceBin/plan/timeOfDay)
+  const body = new URLSearchParams({
+    activity:a,
+    category:c,
+    tags:t,
+    priceBin:price,
+    plan:plan,
+    timeOfDay:time
+  }).toString();
+
   try{
-    await fetch(SUBMIT_URL, { method:'POST', mode:'no-cors',
-      headers:{ 'Content-Type':'application/x-www-form-urlencoded' }, body });
+    await fetch(SUBMIT_URL, {
+      method:'POST',
+      mode:'no-cors',
+      headers:{ 'Content-Type':'application/x-www-form-urlencoded' },
+      body
+    });
     closeDrawer();
+    // clear form
     $("#f_activity").value = ""; $("#f_category").value = "";
     document.querySelectorAll("#f_tags_wrap input[type=checkbox]").forEach(cb=>{
       cb.checked = false; cb.parentElement.classList.remove("active");
     });
+    document.querySelectorAll('input[name="price"], input[name="plan"], input[name="time"]').forEach(r=> r.checked=false);
     showToast("Thanks! Your idea was submitted for review.");
   }catch(e){
     showToast("Sorry, something went wrong. Try again?");
@@ -438,10 +499,10 @@ document.querySelectorAll('input[name="cat"]').forEach(r=> r.addEventListener("c
   .forEach(id => { const x = $("#"+id); if(x) x.addEventListener("change", update); });
 
 /* ===== Init ===== */
-rebuildChipsFromActivities(false);   // show fallback chips immediately
+rebuildChipsFromActivities(false);   // show chips immediately (fallback until CSV loads)
 buildTagChecklist();                 // build suggest-drawer checklist
 applyHash(readHash());               // apply saved state (if any)
-update();                            // initial render (will be empty until CSV loads)
+update();                            // initial render
 loadApprovedFromSheet();             // load live data
 </script>
 </body>
