@@ -252,24 +252,39 @@ function rebuildChipsFromActivities(preserve=true){
 /* ===== Load APPROVED rows from Sheet (CSV) ===== */
 async function loadApprovedFromSheet(){
   try{
-    const resp = await fetch(SHEET_CSV_URL, { cache:"no-store" });
-    if(!resp.ok){ console.warn("CSV fetch failed:", resp.status); rebuildChipsFromActivities(true); return; }
+    // Add a cache-buster so Google doesn't serve an old CSV
+    const url = SHEET_CSV_URL + (SHEET_CSV_URL.includes('?') ? '&' : '?') + 'cb=' + Date.now();
+    const resp = await fetch(url, { cache: "no-store" });
+    if(!resp.ok){
+      console.warn("CSV fetch failed:", resp.status);
+      rebuildChipsFromActivities(true);
+      update();
+      return;
+    }
+
     const text = await resp.text();
     const rows = parseCSV(text);
     const objs = rowsToObjects(rows);
 
-    const approved = objs.filter(o => (o['Approved'] || '').toLowerCase() === 'true');
+    // Be tolerant: TRUE/true/1/yes (any case) counts as approved
+    const isApproved = v => /^true|^1|^yes$/i.test((v||'').toString().trim());
+    const approved = objs.filter(o => isApproved(o['Approved']));
+
     const add = approved.map(o => ({
-      name:o['Activity'],
-      category:o['Category'],
-      tags:(o['Tags']||'').split(';').map(t=>t.trim()).filter(Boolean),
-      price:o['PriceBin']||'',
-      plan:o['Plan']||'',
-      time:o['TimeOfDay']||''
-    })).filter(x=>x.name && (x.category==='Seasonal' || x.category==='Permanent'));
+      name: o['Activity'],
+      category: o['Category'],
+      tags: (o['Tags'] || '').split(';').map(t => t.trim()).filter(Boolean),
+      price: o['PriceBin'] || '',
+      plan:  o['Plan']     || '',
+      time:  o['TimeOfDay']|| ''
+    })).filter(x => x.name && (x.category === 'Seasonal' || x.category === 'Permanent'));
 
     add.forEach(a => a._tagStr = ";" + a.tags.map(norm).join(";") + ";");
+
+    activities.length = 0;
     activities.push(...add);
+
+    console.log(`CSV rows: ${objs.length}, approved: ${approved.length}, loaded: ${add.length}`);
 
     rebuildChipsFromActivities(true);
     update();
@@ -279,6 +294,7 @@ async function loadApprovedFromSheet(){
     update();
   }
 }
+
 
 /* Tiny CSV parser */
 function parseCSV(text){
